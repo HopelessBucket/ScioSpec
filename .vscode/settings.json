@@ -1,0 +1,14 @@
+{
+    "pylint.args": [
+        "--disable=C0103",
+        "--disable=C0114",
+        "--disable=C0115",
+        "--disable=C0116",
+        "--disable=W0719",
+        "--disable=C0410",
+        "--disable=C0301",
+        "--disable=C0303",
+        "--disable=R0902",
+        "--disable=R0904"
+    ]
+}
