@@ -34,7 +34,7 @@ precision = 1
 timestamp = TimeStamp.ms
 
 is3x.DoInitialSetup(fmin, fmax, fnum, fscale, channel, mode, currentRange, precision, excitationType, excitationValue, elComb, timestamp)
-is3x.DevSetSetup()
+is3x.SetSetup()
 
 fVec = np.logspace(fmin, fmax, fnum)
 
@@ -60,3 +60,4 @@ for repetition in range(repeatCount):
         admList.append(1 / impedance)
         admMagList.append(abs(admList[-1]))
         admAngList.append(np.angle(admList[-1]))
+        
