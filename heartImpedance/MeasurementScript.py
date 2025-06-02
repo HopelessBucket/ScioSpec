@@ -16,9 +16,9 @@ repeatCount = 3
 repetitionTime = 0.2
 
 # For excitation type and current range use the enum classes
-excitationType = InjectionType.Voltage
+excitationType = InjectionType.voltage
 excitationValue = 0.5
-currentRange = CurrentRange.Auto
+currentRange = CurrentRange.rangeAuto
 
 zMin, zMax = CalculateValidImpedanceRange(excitationType, excitationValue, currentRange)
 
@@ -27,12 +27,12 @@ is3x = ImpedanceAnalyser(myComPort)
 fmin = 1e3
 fmax = 1e6
 fnum = 10
-fscale = FrequencyScale.Log
+fscale = FrequencyScale.logarithmic
 channel = FeChannel.BNC
 mode = FeMode.mode4pt
 precision = 1
 timestamp = TimeStamp.ms
-
+is3x.GetMeasurements()
 is3x.DoInitialSetup(fmin, fmax, fnum, fscale, channel, mode, currentRange, precision, excitationType, excitationValue, elComb, timestamp)
 is3x.SetSetup()
 

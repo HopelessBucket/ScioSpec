@@ -1,19 +1,19 @@
 from enum import Enum
 
 class InjectionType(Enum):
-    Voltage = 0x01
-    Current = 0x02
+    voltage = 0x01
+    current = 0x02
 
 class CurrentRange(Enum):
-    Auto = 0x00
-    Select10mA =  0x01
-    Select100uA = 0x02
-    Select1uA = 0x04
-    Select10nA = 0x06
+    rangeAuto = 0x00
+    range10mA =  0x01
+    range100uA = 0x02
+    range1uA = 0x04
+    range10nA = 0x06
 
 class FrequencyScale(Enum):
-    Log = 0x01
-    Linear = 0x00
+    logarithmic = 0x01
+    linear = 0x00
     
 class FeMode(Enum):
     mode2pt = 0x01
@@ -22,8 +22,8 @@ class FeMode(Enum):
     
 class FeChannel(Enum):
     BNC = 0x01
-    ExtP = 0x02
-    MUX = 0x03
+    ExtensionPort = 0x02
+    InternalMux = 0x03
     
 class TimeStamp(Enum):
     off = "off"
@@ -47,4 +47,5 @@ class InternalModule(Enum):
     MuxModule32x2 = 0x02
     Mux32Any2Any = 0x07
     Mux32Any2Any2202 = 0x09
+
 

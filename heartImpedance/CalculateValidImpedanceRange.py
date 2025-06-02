@@ -5,15 +5,15 @@ def CalculateValidImpedanceRange(injectionType:InjectionType, injectionValue, in
     zMax = float("inf")
     
     match injectionCurrentRange:
-        case CurrentRange.Auto:
+        case CurrentRange.rangeAuto:
             currRange = None
-        case CurrentRange.Select10mA:
+        case CurrentRange.range10mA:
             currRange = 10e-3
-        case CurrentRange.Select100uA:
+        case CurrentRange.range100uA:
             currRange = 100e-6
-        case CurrentRange.Select1uA:
+        case CurrentRange.range1uA:
             currRange = 1e-6
-        case CurrentRange.Select10nA:
+        case CurrentRange.range10nA:
             currRange = 10e-9
         case _:
             raise ValueError("Invalid injectionCurrentRange.")
@@ -21,12 +21,12 @@ def CalculateValidImpedanceRange(injectionType:InjectionType, injectionValue, in
     iMax = 0.01
     uMax = 1
     
-    if injectionType == InjectionType.Current:
+    if injectionType == InjectionType.current:
         if injectionValue > iMax:
             raise Exception("Requested injection current is too large.")
         zMax = uMax / injectionValue
     
-    elif injectionType == InjectionType.Voltage:
+    elif injectionType == InjectionType.voltage:
         if injectionValue > uMax:
             raise Exception("Requested injection voltage is too large.")
         
