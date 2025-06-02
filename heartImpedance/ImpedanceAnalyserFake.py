@@ -3,13 +3,12 @@ import serial
 from EnumClasses import CurrentRange, InjectionType, FrequencyScale, FeMode, FeChannel, TimeStamp, ExternalModule, InternalModule
 from HelperFunctions import GetHexSingle, GetFloatFromBytes
 import numpy as np
-class ImpedanceAnalyser():
+class ImpedanceAnalyserFake():
     
     #region Constructor
     def __init__(self, comPort:str):
         # communication
-        # self.device = comPort
-        self.device = serial.Serial(port=comPort, timeout=256000)
+        self.device = comPort
         self.timeout = 10
         
         # front end settings
@@ -147,96 +146,13 @@ class ImpedanceAnalyser():
         self.SetOptions()
     #endregion
     
-    #region SerialPort Communication
-    def SendAndReceive(self, command:bytes) -> bytes:
-        
-        self.device.write(command)
-        
-        msg = bytes()
-        while True:
-            frame = self.ReadFrame()
-            if self.IsAck(frame):
-                ack = frame[3]
-                self.WarningACK(ack)
-                break
-            
-            msg += frame
-                
-        return msg
-    
-    
-    def ReadFrame(self) -> bytes:
-        
-        msgHeader = self.device.read(2)
-        ct = msgHeader[0]
-        le = msgHeader[1]
-        
-        msgBody = self.device.read(le+1)
-        if ct != msgBody[-1]:
-            raise Warning("Malformed message received.")
-        
-        return msgHeader + msgBody
-    
-    
-    def ReadBuffer(self) -> tuple[list, bytes]:
-        
-        buffer = self.device.read(self.device.bytesize)
-        
-        bytePos = 1
-        msgs = bytes()
-        while bytePos < len(buffer):
-            le = buffer[bytePos]
-            
-            msgThis = buffer[bytePos:(bytePos + le + 2)]
-            bytePos += le + 3
-            
-            msgs += msgThis
-            
-        return msgs, buffer
-    
-    
-    def IsAck(self, msg:bytes) -> bool:
-        
-        if len(msg) == 4 and msg[0] == 0x18 and msg[1] == 0x01 and msg[3] == 0x18:
-            return True
-        
-        return False
-    
-    
-    def WarningACK(self, ack:bytes):
-        
-        match ack[2]:
-            case 0x01:
-                raise Exception("Ack: 0x01 Frame-Not-Acknowledge: Incorrect syntax.")
-            case 0x02:
-                raise Exception("Ack: 0x02 Timeout: Communication-timeout (less data than expected).")
-            case 0x04:
-                print("Ack: 0x04 Wake-Up Message: System boot ready.")
-            case 0x11:
-                print("Ack: 0x11 TCP-Socket: Valid TCP client-socket connection.")
-            case 0x81:
-                raise Exception("Ack: 0x81 Not-Acknowledge: Command has not been executed.")
-            case 0x82:
-                raise Exception("Ack: 0x82 Not-Acknowledge: Command could not be recognized.")
-            case 0x83:
-                print("Command-Acknowledge")
-            case 0x84:
-                print("Ack: 0x84 System-Ready Message: System is operational and ready to receive data.")
-            case 0x90:
-                print("Ack: 0x90 Overcurrent Detected.")
-            case 0x91:
-                print("Ack: 0x91 Overvoltage Detected.")
-            case _:
-                print(f"ACK: Unknown! Msg: {ack}")
-    #endregion
-    
     #region ScioSpec commands
     def SaveSettings(self):
         """0x90 - Save Settings
         """
         
         command = bytes([0x90, 0x00, 0x90])
-        self.SendAndReceive(command)
+        print(list(command))
     
     
     def SetOptions(self):
@@ -256,14 +172,14 @@ class ImpedanceAnalyser():
             case _:
                 raise ValueError(f"TimeStamp type not recognised: {self.resTimeStamp}")
         
-        self.SendAndReceive(command)
+        print(list(command))
         
         if self.resCurrentRange:
             command = bytes([0x97, 0x02, 0x04, 0x01, 0x97])
         else:
             command = bytes([0x97, 0x02, 0x04, 0x00, 0x97])
             
-        self.SendAndReceive(command)
+        print(list(command))
     
     
     def GetOptionsTimeStamp(self) -> (TimeStamp | None):
@@ -277,7 +193,9 @@ class ImpedanceAnalyser():
         """
         
         command = bytes([0x98, 0x01, 0x01, 0x98])
-        msg = self.SendAndReceive(command)
+        print(list(command))
+        
+        msg = bytes([0x98, 0x02, 0x01, 0x01, 0x98])
         
         if msg[2] == 1 and msg[3] == 0:
             return TimeStamp.off
@@ -294,7 +212,7 @@ class ImpedanceAnalyser():
         """
         
         command = bytes([0xA1, 0x00, 0xA1])
-        self.SendAndReceive(command)
+        print(list(command))
     
     
     def SetFeSettings(self):
@@ -302,10 +220,10 @@ class ImpedanceAnalyser():
         """
         
         command = bytes([0xB0, 0x03, 0xFF, 0xFF, 0xFF, 0xB0])
-        self.SendAndReceive(command)
+        print(list(command))
         
         command = bytes([0xB0, 0x03, self.feMode.value, self.feChannel.value, self.feRange.value, 0xB0])
-        self.SendAndReceive(command)
+        print(list(command))
     
     
     def GetFeSettings(self) -> tuple[FeMode | None, FeChannel | None, CurrentRange | None]:
@@ -316,28 +234,13 @@ class ImpedanceAnalyser():
         """
         
         command = bytes([0xB1, 0x00, 0xB1])
-        msg = self.SendAndReceive(command)
+        print(list(command))
         
+        msg = bytes([0xB1, 0x03, 0x03, 0x02, 0x04, 0xB1])
         # measurement mode
-        mode = None
-        for measMode in FeMode:
-            if msg[2] == measMode.value:
-                mode = measMode
-                break
-        
-        # measurement channel
-        channel = None
-        for measChannel in FeChannel:
-            if msg[3] == measChannel.value:
-                channel = measChannel
-                break
-        
-        # range
-        currRange = None
-        for possRange in CurrentRange:
-            if msg[4] == possRange.value:
-                currRange = possRange
-                break
+        mode = FeMode(msg[2])
+        channel = FeChannel(msg[3])
+        currRange = CurrentRange(msg[4])
         
         return mode, channel, currRange
     
@@ -358,7 +261,7 @@ class ImpedanceAnalyser():
         portBytes = self.muxElConfig[offset]
         
         command = bytes([0xB2, 0x04] + portBytes + [0xB2])
-        self.SendAndReceive(command)
+        print("Send command: " + command)
     
     
     def GetExtensionPortChannel(self) -> list[int]:
@@ -369,7 +272,8 @@ class ImpedanceAnalyser():
         """
         
         command = bytearray([0xB3, 0x00, 0xB3])
-        msg = self.SendAndReceive(command)
+        print(list(command))
+        msg = bytes([0xB3, 0x04, 0x05, 0x06, 0x07, 0x08])
         
         return list(msg[2:-1])
     
@@ -382,7 +286,9 @@ class ImpedanceAnalyser():
         """
         
         command = bytes([0xB5, 0x00, 0xB5])
-        msg = self.SendAndReceive(command)
+        print(list(command))
+        
+        msg = bytes([0xB5, 0x03, 0x09, 0x02, 0x05, 0x05, 0xB5])
         
         externalModule = ExternalModule(msg[2])
         internalModule = InternalModule(msg[3])
@@ -403,8 +309,8 @@ class ImpedanceAnalyser():
         """0xB6 - Set Setup
         """
         
-        # command = bytes([0xB6, 0x01, 0x01, 0xB6])
-        # self.SendAndReceive(command)
+        command = bytes([0xB6, 0x01, 0x01, 0xB6])
+        print(list(command))
         
         command = bytes([0xB6, 0x25, 0x03])
 
@@ -426,7 +332,7 @@ class ImpedanceAnalyser():
         # closing command tag
         command += bytes([0xB6])
         
-        self.SendAndReceive(command)
+        print(list(command))
     
     
     # Get Setup functions
@@ -438,7 +344,9 @@ class ImpedanceAnalyser():
         """
         
         command = bytes([0xB7, 0x01, 0x01, 0xB7])
-        msg = self.SendAndReceive(command)
+        print(list(command))
+        
+        msg = bytes([0xB7, 0x02, 0x00, 0x15, 0xB7])
         
         return int.from_bytes(msg[3:5], "big")
     
@@ -454,7 +362,9 @@ class ImpedanceAnalyser():
         """
         
         command = bytes([0xB7, 0x03]) + frequencyPoint.to_bytes(2, "big") + bytes([0xB7])
-        msg = self.SendAndReceive(command)
+        print(list(command))
+        
+        msg = bytes([0xB7, 0x0D, 0x02, 0x23, 0x12, 0x00, 0x00, 0x15, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0xB7])
         
         frequency = GetFloatFromBytes(msg[3:7])
         precision = GetFloatFromBytes(msg[7:11])
@@ -471,9 +381,10 @@ class ImpedanceAnalyser():
         """
         
         command = bytes([0xB7, 0x01, 0x04, 0xB7])
-        msg = self.SendAndReceive(command)
+        print(list(command))
+        msg = bytes([0xB7, 0x0D, 0x04, 0x01, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x05, 0x00, 0x00, 0x00, 0xB7])
         
-        return [GetFloatFromBytes(msg[i:i+4]) for i in range(3, len(msg) - 2, 4)]
+        return [GetFloatFromBytes(msg[i:i+4]) for i in range(3, len(msg) - 1, 4)]
     
     
     def SaveSetupToSlot(self, slot:int):
@@ -490,7 +401,7 @@ class ImpedanceAnalyser():
             raise ValueError("Slot must be of one byte size.")
         
         command = bytes([0xB7, 0x02, 0x20, slot, 0xB7])
-        self.SendAndReceive(command)
+        print(list(command))
     
     
     def GetDCBias(self) -> float:
@@ -501,7 +412,9 @@ class ImpedanceAnalyser():
         """
         
         command = bytes([0xB7, 0x01, 0x33, 0xB7])
-        msg = self.SendAndReceive(command)
+        print(list(command))
+        
+        msg = bytes([0xB7, 0x05, 0x33, 0x05, 0x00, 0x00, 0x00])
         
         return GetFloatFromBytes(msg[3:7])
     
@@ -511,184 +424,13 @@ class ImpedanceAnalyser():
         """
         
         command = bytes([0xB8, 0x03, 0x01, 0x00, 0x01, 0xB8])
-        self.SendAndReceive(command)
-    
-    
-    def SetSyncTime(self, syncTime:int):
-        """0xB9 - Set Sync Time
-
-        Args:
-            syncTime (int): sync time in microseconds, needs to be between 0 and 180e6
-
-        Raises:
-            ValueError: _description_
-        """
-        
-        if syncTime < 0 or syncTime > 180e6:
-            raise ValueError("SyncTime needs to be between 0 and 180 seconds")
-        
-        command = bytes([0xB9, 0x04, syncTime.to_bytes(4, "big")])
-        self.SendAndReceive(command)
-    
-    
-    def GetSyncTime(self) -> int:
-        """0xBA
-
-        Returns:
-            int: synchronization time in microseonds
-        """
-        
-        command = bytes([0xBA, 0x00, 0xBA])
-        msg = self.SendAndReceive(command)
-        
-        return int.from_bytes(msg[2:6], "big")
-    
-    
-    def SetIPAddress(self, ipAddress:str = "0.0.0.0"):
-        """0xBD - Set Ethernet Configuration - Set IP Address
-
-        Args:
-            ipAddress (str, optional): IP address to be set. Defaults to "0.0.0.0".
-        """
-        
-        addressSubStrings = ipAddress.split(".")
-        addressInts = [int(a) for a in addressSubStrings]
-        
-        command = bytes([0xBD, 0x05, 0x01] + addressInts + [0xBD])
-        self.SendAndReceive(command)
-    
-    
-    def SetDHCPSwitch(self, switch:bool):
-        """0xBD - Set Ethernet Configuration - Set DHPC Switch
-
-        Args:
-            switch (bool): True for on, False for off
-        """
-        
-        if switch:
-            switchInt = 1
-        else:
-            switchInt = 0
-        
-        command = bytes([0xBD, 0x02, 0x03, switchInt, 0xBD])
-        self.SendAndReceive(command)
-    
-    
-    def GetIPAddress(self) -> str:
-        """0xBE - Get Ethernet Configuration - Get IP Address
-
-        Returns:
-            str: string with IP address
-        """
-        
-        command = bytes([0xBE, 0x01, 0x01, 0xBE])
-        msg = self.SendAndReceive(command)
-        
-        return ".".join(list(msg[3:7]))
-    
-    
-    def GetMACAddress(self) -> str:
-        """0xBE - Get Ethernet Configuration - Get MAC Address
-
-        Returns:
-            str: string with mac address
-        """
-        
-        command = bytes([0xBE, 0x01, 0x02, 0xBE])
-        msg = self.SendAndReceive(command)
-        
-        return msg[3:9].hex("-")
-    
-    
-    def GetDHCPSwitch(self) -> bool:
-        """0xBE Get Ethernet Configuration - Get DHCP Switch
-
-        Returns:
-            bool: Current DHCP switch state, True - on, False - off
-        """
-        
-        command = bytes([0xBE, 0x01, 0x03, 0xBE])
-        msg = self.SendAndReceive(command)
-        
-        if msg[3] == 1:
-            return True
-        else:
-            return False
-    
-    
-    def TCPConnectionWatchdog(self, interval:int = 60):
-        """0xCF - TCP Connection Watchdog
-
-        Args:
-            interval (int): interval in seconds, minimum 1s, maximum 600s, must be int type
-        """
-        
-        command = bytes([0xCF, 0x05, 0x00]) + interval.to_bytes(4, "big") + bytes([0xCF])
-        self.SendAndReceive(command)
-    
-    
-    def GetARMFirmwareID(self) -> tuple[int, int]:
-        """0xD0 - Get ARM firmware ID
-
-        Returns:
-            tuple[int, int]: (revision number, build number)
-        """
-        
-        command = bytes([0xD0, 0x00, 0xD0])
-        msg = self.SendAndReceive(command)
-        
-        revisionNumber = int.from_bytes(msg[4, 5], "big")
-        buildNumber = int.from_bytes(msg[6, 7], "big")
-        
-        return revisionNumber, buildNumber
-    
-    
-    def GetDeviceID(self) -> tuple[int, int, int, int]:
-        """0xD1 - Get Device ID
-
-        Returns:
-            tuple[int, int, int, int]: (version of the general information part, device identifier, serial number, date of delivery)
-        """
-        
-        command = bytes([0xD1, 0x00, 0xD1])
-        msg = self.SendAndReceive(command)
-        
-        version = msg[2]
-        deviceID = int.from_bytes(msg[3, 4], "big")
-        serialNumber = int.from_bytes(msg[5, 6], "big")
-        deliveryDate = 2010 + int.from_bytes(msg[7, 8], "big")
-        
-        return version, deviceID, serialNumber, deliveryDate
-    
-    
-    def GetFPGAFirmwareID(self) -> tuple[int, int]:
-        """0xD2 - Get FPGA Firmware ID
-
-        Returns:
-            tuple[int, int]: (revision number, build number)
-        """
-        
-        command = bytes([0xD2, 0x00, 0xD2])
-        msg = self.SendAndReceive(command)
-        
-        revisionNumber = int.from_bytes(msg[7, 8], "big")
-        buildNumber = int.from_bytes(msg[9, 10], "big")
-        
-        return revisionNumber, buildNumber
+        print(list(command))
     #endregion
     
     #region Result processing
     def DeserializeResults(self, results:bytes) -> tuple[complex, int, CurrentRange, list]:
         
         warn = 0
-        if self.IsAck(results):
-            warn = results[2]
-            results = self.ReadFrame()
-            
-            if self.IsAck(results):
-                warn += results[2] * 1000
-                results = self.ReadFrame()
-        
         
         if self.resTimeStamp is TimeStamp.off:
             lengthTime = 0
@@ -748,7 +490,7 @@ class ImpedanceAnalyser():
             
             for measIdx in range(numMeas):
                 for freqIdx in range(self.fnum):
-                    results = self.ReadFrame()
+                    results = bytes([0x87, 0x0A, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x00, 0x01, 0x00, 0x87])
                     impedance, warn, currentRange, timeOffset = self.DeserializeResults(results)
                     
                     resImpedance[measIdx + 128 * (idxElChunks - 1)][freqIdx] = impedance
