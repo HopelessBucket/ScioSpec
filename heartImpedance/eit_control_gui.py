@@ -1,6 +1,5 @@
 import sys
 import os
-import matlab.engine
 import pandas as pd
 import numpy as np
 from scipy.io import loadmat
@@ -11,7 +10,6 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtGui import QFont
 from PyQt6.QtCore import Qt
-from load_measurement_from_matlab import load_measurement
 from time_series_window import TimeSeriesWindow
 from bode_diagram_window import BodeDiagramWindow
 from derived_value_window import DerivedValueWindow

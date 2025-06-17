@@ -33,5 +33,4 @@ def GetHexSingle(freq) -> list[int]:
 
 def GetFloatFromBytes(bytedFloat:bytes) -> float:
     
-    print(list(bytedFloat))
-    return struct.unpack("!f", bytedFloat)
+    return struct.unpack("!f", bytedFloat)[0]

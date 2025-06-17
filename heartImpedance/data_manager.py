@@ -8,7 +8,7 @@ from __future__ import annotations
 import pathlib
 import numpy as np
 import pandas as pd
-from scipy.io import loadmat, matlab as _mlab
+from scipy.io import loadmat
 import h5py
 from typing import List, Tuple
 
@@ -20,12 +20,22 @@ class EISData:
         self,
         time: np.ndarray,
         frequency: np.ndarray,
-        impedance: np.ndarray,
         electrodes: np.ndarray | None = None,
+        realPart: np.ndarray | None = None,
+        imagPart: np.ndarray | None = None,
+        impedance: np.ndarray | None = None 
     ):
         self.time = np.asarray(time).ravel()
         self.frequency = np.asarray(frequency).ravel()
-        self.impedance = np.asarray(impedance)
+        print(time, frequency, electrodes, realPart, imagPart, impedance)
+        if realPart and imagPart:
+            self.impedance = np.asarray(complex(realPart[x], imagPart[x]) for x in range(len(realPart)))
+            self.realPart = np.asarray(realPart)
+            self.imagPart = np.asarray(imagPart)
+        elif impedance:
+            self.impedance = impedance
+            self.realPart = np.real(impedance)
+            self.imagPart = np.imag(impedance)
         self.electrodes = electrodes
 
     # ------------------------------------------------------------------ #

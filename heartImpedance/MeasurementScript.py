@@ -2,6 +2,7 @@ import numpy as np
 import time
 from CalculateValidImpedanceRange import CalculateValidImpedanceRange
 from ImpedanceAnalyser import ImpedanceAnalyser
+from ImpedanceAnalyserFake import ImpedanceAnalyserFake
 from EnumClasses import CurrentRange, InjectionType, FrequencyScale, FeChannel, FeMode, TimeStamp
 
 
@@ -22,7 +23,7 @@ currentRange = CurrentRange.rangeAuto
 
 zMin, zMax = CalculateValidImpedanceRange(excitationType, excitationValue, currentRange)
 
-is3x = ImpedanceAnalyser(myComPort)
+is3x = ImpedanceAnalyserFake(myComPort)
 
 fmin = 1e3
 fmax = 1e6
@@ -31,10 +32,10 @@ fscale = FrequencyScale.logarithmic
 channel = FeChannel.BNC
 mode = FeMode.mode4pt
 precision = 1
-timestamp = TimeStamp.ms
-is3x.GetMeasurements()
-is3x.DoInitialSetup(fmin, fmax, fnum, fscale, channel, mode, currentRange, precision, excitationType, excitationValue, elComb, timestamp)
+timestamp = TimeStamp.off
+is3x.DoInitialSetup(fmin, fmax, fnum, fscale, channel, mode, currentRange, precision, excitationType, excitationValue, timestamp)
 is3x.SetSetup()
+is3x.GetFrequencyList()
 
 fVec = np.logspace(fmin, fmax, fnum)
 
@@ -44,7 +45,7 @@ for repetition in range(repeatCount):
         time.sleep(waitTime)
     
     measurementStartTime = time.time()
-    resImpList, resWarnList, resRangeList, resTimeList, startTimeList, finishTimeList = is3x.GetMeasurements()
+    resRealList, resImagList, resWarnList, resRangeList, resTimeList, startTimeList, finishTimeList = is3x.GetMeasurements()
     measurementEndTime = time.time()
     
     impMagList = []
@@ -53,11 +54,12 @@ for repetition in range(repeatCount):
     admList = []
     admMagList = []
     admAngList = []
-    for impedance in resImpList:
-        impMagList.append(abs(impedance))
-        impAngList.append(np.angle(impedance))
+    for index, _ in enumerate(resWarnList):
+        impedanceComplex = complex(resRealList[index][0], resImagList[index][0])
+        impMagList.append(abs(impedanceComplex))
+        impAngList.append(np.angle(impedanceComplex))
         
-        admList.append(1 / impedance)
+        admList.append(1 / impedanceComplex)
         admMagList.append(abs(admList[-1]))
         admAngList.append(np.angle(admList[-1]))
         
