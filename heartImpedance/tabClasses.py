@@ -14,9 +14,11 @@ from PySide6.QtWidgets import (
     QFileDialog,
     QMessageBox,
     QLineEdit,
-    QGridLayout
+    QGridLayout,
+    QListWidget,
+    QListWidgetItem
 )
-from PySide6.QtCore import Qt, Slot
+from PySide6.QtCore import Qt, Slot 
 from data_manager import EISData
 from plots import MplCanvas
 from ImpedanceAnalyser import ImpedanceAnalyser
@@ -220,12 +222,14 @@ class DerivedTab(QWidget):
 class SettingsTab(QWidget):
     def __init__(self, impedanceAnalyser:ImpedanceAnalyser):
         super().__init__()
-        self.data: EISData | None = None
         self.impedanceAnalyser = impedanceAnalyser
         # Controls
         self.lineFreqMin = QLineEdit(text="1000")
+        self.lineFreqMin.setFixedWidth(100)
         self.lineFreqMax = QLineEdit(text="1000000")
+        self.lineFreqMax.setFixedWidth(100)
         self.lineFreqNum = QLineEdit(text="10")
+        self.lineFreqNum.setFixedWidth(100)
         self.comboFreqScale = QComboBox()
         self.comboFreqScale.addItems(["linear", "logarithmic"])
         self.comboChannel = QComboBox()
@@ -241,6 +245,23 @@ class SettingsTab(QWidget):
         self.comboTimestamp = QComboBox()
         self.comboTimestamp.addItems(["off", "ms", "us"])
         
+        self.inputElComb1 = QLineEdit(text="1")
+        self.inputElComb1.setFixedWidth(50)
+        self.inputElComb2 = QLineEdit(text="2")
+        self.inputElComb2.setFixedWidth(50)
+        self.inputElComb3 = QLineEdit(text="3")
+        self.inputElComb3.setFixedWidth(50)
+        self.inputElComb4 = QLineEdit(text="4")
+        self.inputElComb4.setFixedWidth(50)
+        
+        self.addCombButton = QPushButton("Add")
+        self.addCombButton.clicked.connect(self.AddElectrodeCombination)
+        self.removeButton = QPushButton("Remove")
+        self.removeButton.clicked.connect(self.RemoveSelectedCombination)
+        self.removeButton.setEnabled(False)
+        self.electrodeListView = QListWidget()
+        self.electrodeListView.currentRowChanged.connect(self.EnableRemoveButton)
+        
         # Buttons for get commands 
         self.freqMaxGet = QPushButton("Get current frequencies")
         self.freqMaxGet.clicked.connect(self.GetSettingsFreq)
@@ -252,13 +273,22 @@ class SettingsTab(QWidget):
         self.timestampGet.clicked.connect(self.GetSettingsTimestamp)
         self.setSettings = QPushButton("Set current settings")
         self.setSettings.clicked.connect(self.SetSettings)
+        
+        self.frequenciesListView = QListWidget()
+        self.modeLabel = QLabel("Mode: ")
+        self.channelLabel = QLabel("Channel: ")
+        self.rangeLabel = QLabel("Range: ")
+        self.precisionLabel = QLabel("Precision: ")
+        self.amplitudeLabel = QLabel("Amplitude: ")
+        self.timestampLabel = QLabel("Timestamp: ")
+        
         # Layout
         formLayout = QGridLayout(self)
         formLayout.addWidget(QLabel("Min Frequency[Hz]:"), 0, 0)
         formLayout.addWidget(self.lineFreqMin, 0, 1)
         formLayout.addWidget(QLabel("Max Frequency[Hz]:"), 1, 0)
         formLayout.addWidget(self.lineFreqMax, 1, 1)
-        formLayout.addWidget(self.freqMaxGet, 1, 2)
+        # formLayout.addWidget(self.freqMaxGet, 1, 2)
         formLayout.addWidget(QLabel("Number of frequencies:"), 2, 0)
         formLayout.addWidget(self.lineFreqNum, 2, 1)
         formLayout.addWidget(QLabel("Frequency scale:"), 3, 0)
@@ -267,20 +297,47 @@ class SettingsTab(QWidget):
         formLayout.addWidget(self.comboChannel, 4, 1)
         formLayout.addWidget(QLabel("Measurement mode:"), 5, 0)
         formLayout.addWidget(self.comboMode, 5, 1)
-        formLayout.addWidget(self.modeGet, 5, 2)
+        # formLayout.addWidget(self.modeGet, 5, 2)
         formLayout.addWidget(QLabel("Current range:"), 6, 0)
         formLayout.addWidget(self.comboRange, 6, 1)
         formLayout.addWidget(QLabel("Excitation type:"), 7, 0)
         formLayout.addWidget(self.comboExcitation, 7, 1)
         formLayout.addWidget(QLabel("Precision:"), 8, 0)
         formLayout.addWidget(self.linePrecision, 8, 1)
-        formLayout.addWidget(self.precisionGet, 8, 2)
+        # formLayout.addWidget(self.precisionGet, 8, 2)
         formLayout.addWidget(QLabel("Excitation amplitude:"), 9, 0)
         formLayout.addWidget(self.lineAmplitude, 9, 1)
         formLayout.addWidget(QLabel("Timestamp:"), 10, 0)
         formLayout.addWidget(self.comboTimestamp, 10, 1)
-        formLayout.addWidget(self.timestampGet, 10, 2)
+        # formLayout.addWidget(self.timestampGet, 10, 2)
         formLayout.addWidget(self.setSettings, 11, 1)
+        
+        formLayout.addWidget(QLabel("Read current settings"), 12, 0, Qt.AlignmentFlag.AlignBottom)
+        formLayout.addWidget(self.freqMaxGet, 13, 0, Qt.AlignmentFlag.AlignTop)
+        formLayout.addWidget(self.modeGet, 13, 1, Qt.AlignmentFlag.AlignTop)
+        formLayout.addWidget(self.precisionGet, 13, 2, Qt.AlignmentFlag.AlignTop)
+        formLayout.addWidget(self.timestampGet, 13, 3, 1, 4, Qt.AlignmentFlag.AlignTop)
+        formLayout.addWidget(self.frequenciesListView, 14, 0, 5, 1)
+        formLayout.addWidget(self.modeLabel, 14, 1)
+        formLayout.addWidget(self.channelLabel, 15, 1)
+        formLayout.addWidget(self.rangeLabel, 16, 1)
+        formLayout.addWidget(self.precisionLabel, 14, 2)
+        formLayout.addWidget(self.amplitudeLabel, 15, 2)
+        formLayout.addWidget(self.timestampLabel, 14, 3, 1, 4)
+        
+        formLayout.addWidget(QLabel("Enter electrode combination:"), 0, 3, 1, 4)
+        formLayout.addWidget(QLabel("Current electrode combinations"), 5, 3, 1, 4)
+        formLayout.addWidget(self.electrodeListView, 6, 3, 6, 4)
+        formLayout.addWidget(self.addCombButton, 3, 3, 1, 2)
+        formLayout.addWidget(self.removeButton, 3, 5, 1, 2)
+        formLayout.addWidget(self.inputElComb1, 1, 3)
+        formLayout.addWidget(self.inputElComb2, 1, 4)
+        formLayout.addWidget(self.inputElComb3, 1, 5)
+        formLayout.addWidget(self.inputElComb4, 1, 6)
+        formLayout.addWidget(QLabel("C"), 2, 3, Qt.AlignmentFlag.AlignHCenter)
+        formLayout.addWidget(QLabel("R"), 2, 4, Qt.AlignmentFlag.AlignHCenter)
+        formLayout.addWidget(QLabel("WS"), 2, 5, Qt.AlignmentFlag.AlignHCenter)
+        formLayout.addWidget(QLabel("W"), 2, 6, Qt.AlignmentFlag.AlignHCenter)
     
     @Slot()
     def SetSettings(self):
@@ -300,24 +357,44 @@ class SettingsTab(QWidget):
     def GetSettingsFreq(self):
 
         fList = self.impedanceAnalyser.GetFrequencyList()
-        self.lineFreqMin.setText(f"{fList[0]}")
-        self.lineFreqMax.setText(f"{fList[-1]}")
-        self.lineFreqNum.setText(f"{len(fList)}")
+        self.frequenciesListView.clear()
+        for frequency in fList:
+            newFrequency = QListWidgetItem()
+            newFrequency.setText(str(frequency) + " Hz")
+            self.frequenciesListView.addItem(newFrequency)
     
     def GetSettingsFe(self):
         
         mode, channel, currRange = self.impedanceAnalyser.GetFeSettings()
-        self.comboMode.setCurrentText(f"{mode.name[4]} point configuration")
-        self.comboChannel.setCurrentText(channel.name)
-        self.comboRange.setCurrentText(currRange.name.replace("range",""))
+        self.modeLabel.setText(f"Mode: {mode.name[4]} point configuration")
+        self.channelLabel.setText("Channel: " + channel.name)
+        self.comboRange.setCurrentText("Range: " + currRange.name.replace("range",""))
     
     def GetSettingsPrecAmp(self):
         
-        frequency, precision, amplitude = self.impedanceAnalyser.GetInformationOfFrequencyPoint(0)
-        self.lineFreqMin.setText(f"{frequency}")
-        self.linePrecision.setText(f"{precision}")
-        self.lineAmplitude.setText(f"{amplitude}")
+        _, precision, amplitude = self.impedanceAnalyser.GetInformationOfFrequencyPoint(1)
+        self.precisionLabel.setText(f"Precision: {precision}")
+        self.amplitudeLabel.setText(f"Amplitude: {amplitude}")
     
     def GetSettingsTimestamp(self):
         
-        self.comboTimestamp.setCurrentText(self.impedanceAnalyser.GetOptionsTimeStamp().value)
+        self.timestampLabel.setText("Timestamp: " + self.impedanceAnalyser.GetOptionsTimeStamp().value)
+    
+    def AddElectrodeCombination(self):
+        
+        self.impedanceAnalyser.muxElConfig.append([int(self.inputElComb1.text()), int(self.inputElComb2.text()), int(self.inputElComb3.text()), int(self.inputElComb4.text())])
+        newItem = QListWidgetItem()
+        newItem.setText(f"[{self.inputElComb1.text()}, {self.inputElComb2.text()}, {self.inputElComb3.text()}, {self.inputElComb4.text()}]")
+        self.electrodeListView.addItem(newItem)
+    
+    def RemoveSelectedCombination(self):
+        
+        for item in self.electrodeListView.selectedItems():
+            self.impedanceAnalyser.muxElConfig.remove(self.impedanceAnalyser.muxElConfig[self.electrodeListView.row(item)])
+            self.electrodeListView.takeItem(self.electrodeListView.row(item))
+            self.electrodeListView.clearSelection()
+            self.removeButton.setEnabled(False)
+    
+    def EnableRemoveButton(self):
+        
+        self.removeButton.setEnabled(True)

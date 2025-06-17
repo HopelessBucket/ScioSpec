@@ -1,5 +1,4 @@
 import math, datetime
-import serial
 from EnumClasses import CurrentRange, InjectionType, FrequencyScale, FeMode, FeChannel, TimeStamp, ExternalModule, InternalModule
 from HelperFunctions import GetHexSingle, GetFloatFromBytes
 import numpy as np
@@ -261,7 +260,7 @@ class ImpedanceAnalyserFake():
         portBytes = self.muxElConfig[offset]
         
         command = bytes([0xB2, 0x04] + portBytes + [0xB2])
-        print("Send command: " + command)
+        print(f"Send command:  {list(command)}")
     
     
     def GetExtensionPortChannel(self) -> list[int]:
@@ -273,7 +272,7 @@ class ImpedanceAnalyserFake():
         
         command = bytearray([0xB3, 0x00, 0xB3])
         print(list(command))
-        msg = bytes([0xB3, 0x04, 0x05, 0x06, 0x07, 0x08])
+        msg = bytes([0xB3, 0x04, 0x05, 0x06, 0x07, 0x08, 0xB3])
         
         return list(msg[2:-1])
     
@@ -379,12 +378,12 @@ class ImpedanceAnalyserFake():
         Returns:
             list[float]: list of frequencies as floats
         """
-        
         command = bytes([0xB7, 0x01, 0x04, 0xB7])
         print(list(command))
-        msg = bytes([0xB7, 0x0D, 0x04, 0x01, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x05, 0x00, 0x00, 0x00, 0xB7])
-        
-        return [GetFloatFromBytes(msg[i:i+4]) for i in range(3, len(msg) - 1, 4)]
+        if self.fscale is FrequencyScale.logarithmic:
+            return np.geomspace(self.fmin, self.fmax, self.fnum)
+        else:
+            return np.geomspace(self.fmin, self.fmax, self.fnum)
     
     
     def SaveSetupToSlot(self, slot:int):
@@ -428,7 +427,7 @@ class ImpedanceAnalyserFake():
     #endregion
     
     #region Result processing
-    def DeserializeResults(self, results:bytes) -> tuple[complex, int, CurrentRange, list]:
+    def DeserializeResults(self, results:bytes) -> tuple[float, float, int, CurrentRange, list]:
         
         warn = 0
         
@@ -448,25 +447,21 @@ class ImpedanceAnalyserFake():
         else:
             lengthCurrent = 1
             currentRange = results[4 + lengthTime]
-        
-        zReal = list(results[(7 + lengthCurrent + lengthTime):(3 + lengthCurrent + lengthTime)])
-        zImag = list(results[(11 + lengthCurrent + lengthTime):(8 + lengthTime + lengthCurrent)])
-        impedance = zReal + 1j*zImag
-        
-        for possibleRange in CurrentRange:
-            if possibleRange.value == currentRange:
-                return impedance, warn, possibleRange, timeOffset
 
-        return impedance, warn, None, timeOffset
+        zReal = GetFloatFromBytes(results[(7 + lengthCurrent + lengthTime):(3 + lengthCurrent + lengthTime):-1])
+        zImag = GetFloatFromBytes(results[(11 + lengthCurrent + lengthTime):(7 + lengthTime + lengthCurrent):-1])
+
+        return zReal, zImag, warn, CurrentRange(currentRange), timeOffset
     
     
     def GetMeasurements(self) -> tuple[list, list, list, list, list, list]:
         
         muxConfigLen = len(self.muxElConfig)
-        resWarning = [[0 for x in range(muxConfigLen)] for y in range(self.fnum)]
-        resImpedance = [[None for x in range(muxConfigLen)] for y in range(self.fnum)]
-        resRange = [["" for x in range(muxConfigLen)] for y in range(self.fnum)]
-        resTime = [[None for x in range(muxConfigLen)] for y in range(self.fnum)]
+        resWarning = [[0 for _ in range(self.fnum)] for _ in range(muxConfigLen)]
+        resReal = [[None for _ in range(self.fnum)] for _ in range(muxConfigLen)]
+        resImag = [[None for _ in range(self.fnum)] for _ in range(muxConfigLen)]
+        resRange = [["" for _ in range(self.fnum)] for _ in range(muxConfigLen)]
+        resTime = [[None for _ in range(self.fnum)] for _ in range(muxConfigLen)]
         
         counter = 0
         startTime = []
@@ -474,31 +469,29 @@ class ImpedanceAnalyserFake():
         
         for idxElChunks in range(math.ceil(muxConfigLen / 128)):
             
-            if math.floor(muxConfigLen / (128 * idxElChunks)):
-                numMeas = 128
-            else:
-                numMeas = muxConfigLen - 128 * (idxElChunks - 1)
+            numMeas = muxConfigLen - 128 * idxElChunks
                 
             self.SetFeSettings()
             
             for _ in range(numMeas):
-                counter += 1
                 self.SetExtensionPortChannel(counter)
+                counter += 1
                 
             startTime.append(datetime.datetime.now().isoformat(" ", "seconds"))
             self.StartMeasure()
             
             for measIdx in range(numMeas):
                 for freqIdx in range(self.fnum):
-                    results = bytes([0x87, 0x0A, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x00, 0x01, 0x00, 0x87])
-                    impedance, warn, currentRange, timeOffset = self.DeserializeResults(results)
+                    results = bytes([184, 11, 0, 0, 1, 198, 136, 28, 106, 198, 149, 112, 104, 184])
+                    real, imag, warn, currentRange, timeOffset = self.DeserializeResults(results)
                     
-                    resImpedance[measIdx + 128 * (idxElChunks - 1)][freqIdx] = impedance
-                    resWarning[measIdx + 128 * (idxElChunks - 1)][freqIdx] = warn
-                    resRange[measIdx + 128 * (idxElChunks - 1)][freqIdx] = currentRange
-                    resTime[measIdx + 128 * (idxElChunks - 1)][freqIdx] = timeOffset
+                    resReal[measIdx + 128 * idxElChunks][freqIdx] = real
+                    resImag[measIdx + 128 * idxElChunks][freqIdx] = imag
+                    resWarning[measIdx + 128 * idxElChunks][freqIdx] = warn
+                    resRange[measIdx + 128 * idxElChunks][freqIdx] = currentRange
+                    resTime[measIdx + 128 * idxElChunks][freqIdx] = timeOffset
                     
             finishTime.append(datetime.datetime.now().isoformat(" ", "seconds"))
         
-        return resImpedance, resWarning, resRange, resTime, startTime, finishTime
+        return resReal, resImag, resWarning, resRange, resTime, startTime, finishTime
     #endregion

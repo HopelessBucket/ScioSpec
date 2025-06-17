@@ -156,7 +156,7 @@ class ImpedanceAnalyser():
         while True:
             frame = self.ReadFrame()
             if self.IsAck(frame):
-                ack = frame[3]
+                ack = frame[2]
                 self.WarningACK(ack)
                 break
             
@@ -203,9 +203,9 @@ class ImpedanceAnalyser():
         return False
     
     
-    def WarningACK(self, ack:bytes):
+    def WarningACK(self, ack:int):
         
-        match ack[2]:
+        match ack:
             case 0x01:
                 raise Exception("Ack: 0x01 Frame-Not-Acknowledge: Incorrect syntax.")
             case 0x02:
@@ -678,7 +678,7 @@ class ImpedanceAnalyser():
     #endregion
     
     #region Result processing
-    def DeserializeResults(self, results:bytes) -> tuple[complex, int, CurrentRange, list]:
+    def DeserializeResults(self, results:bytes) -> tuple[float, float, int, CurrentRange, list]:
         
         warn = 0
         if self.IsAck(results):
@@ -707,24 +707,20 @@ class ImpedanceAnalyser():
             lengthCurrent = 1
             currentRange = results[4 + lengthTime]
         
-        zReal = list(results[(7 + lengthCurrent + lengthTime):(3 + lengthCurrent + lengthTime)])
-        zImag = list(results[(11 + lengthCurrent + lengthTime):(8 + lengthTime + lengthCurrent)])
-        impedance = zReal + 1j*zImag
+        zReal = GetFloatFromBytes(results[(7 + lengthCurrent + lengthTime):(3 + lengthCurrent + lengthTime):-1])
+        zImag = GetFloatFromBytes(results[(11 + lengthCurrent + lengthTime):(7 + lengthTime + lengthCurrent):-1])
         
-        for possibleRange in CurrentRange:
-            if possibleRange.value == currentRange:
-                return impedance, warn, possibleRange, timeOffset
-
-        return impedance, warn, None, timeOffset
+        return zReal, zImag, warn, CurrentRange(currentRange), timeOffset
     
     
-    def GetMeasurements(self) -> tuple[list, list, list, list, list, list]:
+    def GetMeasurements(self) -> tuple[list, list, list, list, list, list, list]:
         
         muxConfigLen = len(self.muxElConfig)
-        resWarning = [[0 for x in range(muxConfigLen)] for y in range(self.fnum)]
-        resImpedance = [[None for x in range(muxConfigLen)] for y in range(self.fnum)]
-        resRange = [["" for x in range(muxConfigLen)] for y in range(self.fnum)]
-        resTime = [[None for x in range(muxConfigLen)] for y in range(self.fnum)]
+        resWarning = [[0 for _ in range(self.fnum)] for _ in range(muxConfigLen)]
+        resReal = [[None for _ in range(self.fnum)] for _ in range(muxConfigLen)]
+        resImag = [[None for _ in range(self.fnum)] for _ in range(muxConfigLen)]
+        resRange = [["" for _ in range(self.fnum)] for _ in range(muxConfigLen)]
+        resTime = [[None for _ in range(self.fnum)] for _ in range(muxConfigLen)]
         
         counter = 0
         startTime = []
@@ -732,16 +728,13 @@ class ImpedanceAnalyser():
         
         for idxElChunks in range(math.ceil(muxConfigLen / 128)):
             
-            if math.floor(muxConfigLen / (128 * idxElChunks)):
-                numMeas = 128
-            else:
-                numMeas = muxConfigLen - 128 * (idxElChunks - 1)
+            numMeas = muxConfigLen - 128 * idxElChunks
                 
             self.SetFeSettings()
             
             for _ in range(numMeas):
-                counter += 1
                 self.SetExtensionPortChannel(counter)
+                counter += 1
                 
             startTime.append(datetime.datetime.now().isoformat(" ", "seconds"))
             self.StartMeasure()
@@ -749,14 +742,15 @@ class ImpedanceAnalyser():
             for measIdx in range(numMeas):
                 for freqIdx in range(self.fnum):
                     results = self.ReadFrame()
-                    impedance, warn, currentRange, timeOffset = self.DeserializeResults(results)
+                    real, imag, warn, currentRange, timeOffset = self.DeserializeResults(results)
                     
-                    resImpedance[measIdx + 128 * (idxElChunks - 1)][freqIdx] = impedance
-                    resWarning[measIdx + 128 * (idxElChunks - 1)][freqIdx] = warn
-                    resRange[measIdx + 128 * (idxElChunks - 1)][freqIdx] = currentRange
-                    resTime[measIdx + 128 * (idxElChunks - 1)][freqIdx] = timeOffset
+                    resReal[measIdx + 128 * idxElChunks][freqIdx] = real
+                    resImag[measIdx + 128 * idxElChunks][freqIdx] = imag
+                    resWarning[measIdx + 128 * idxElChunks][freqIdx] = warn
+                    resRange[measIdx + 128 * idxElChunks][freqIdx] = currentRange
+                    resTime[measIdx + 128 * idxElChunks][freqIdx] = timeOffset
                     
             finishTime.append(datetime.datetime.now().isoformat(" ", "seconds"))
         
-        return resImpedance, resWarning, resRange, resTime, startTime, finishTime
+        return resReal, resImag, resWarning, resRange, resTime, startTime, finishTime
     #endregion

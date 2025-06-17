@@ -1,14 +1,11 @@
 import dash
 from dash import html, Input, Output, State, ctx
 import dash_bootstrap_components as dbc
-import matlab.engine
 import threading
 
 # Dash App initialisieren
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 
-# MATLAB Engine starten (im Hintergrundthread)
-eng = matlab.engine.start_matlab()
 
 # Layout mit Überschrift, Start-Button und Z/Y-Auswahl in einer Zeile
 app.layout = dbc.Container([
@@ -40,16 +37,16 @@ app.layout = dbc.Container([
     State("y-button", "n_clicks"),
     prevent_initial_call=True
 )
-def start_measurement(n_clicks_start, n_clicks_z, n_clicks_y):
-    selected_mode = "Z" if n_clicks_z > n_clicks_y else "Y"
+# def start_measurement(n_clicks_start, n_clicks_z, n_clicks_y):
+#     selected_mode = "Z" if n_clicks_z > n_clicks_y else "Y"
 
-    def run_matlab_script():
-        eng.eval("Measurement_Script_new", nargout=0)
+#     def run_matlab_script():
+#         eng.eval("Measurement_Script_new", nargout=0)
 
-    thread = threading.Thread(target=run_matlab_script)
-    thread.start()
+#     thread = threading.Thread(target=run_matlab_script)
+#     thread.start()
 
-    return f"Measurement started via MATLAB. Selection: {selected_mode}"
+#     return f"Measurement started via MATLAB. Selection: {selected_mode}"
 
 # App starten
 if __name__ == '__main__':

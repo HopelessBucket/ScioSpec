@@ -20,7 +20,6 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, Slot
 from data_manager import load_measurement, EISData
-from matlab_interface import get_matlab_bridge
 from tabClasses import SettingsTab, SpectraTab, TimeseriesTab, DerivedTab
 from ImpedanceAnalyser import ImpedanceAnalyser
 from ImpedanceAnalyserFake import ImpedanceAnalyserFake
@@ -47,14 +46,17 @@ class MainWindow(QWidget):
 
         # Buttons
         btn_load = QPushButton("Daten laden")
-        btn_matlab = QPushButton("Messung starten")
+        btn_matlab = QPushButton("Run Single Measurement")
+        buttonRestartDevice = QPushButton("Restart device")
         btn_load.clicked.connect(self.load_data)
         btn_matlab.clicked.connect(self.run_measurement)
+        buttonRestartDevice.clicked.connect(self.restartDevice)
 
         hl = QHBoxLayout()
         hl.addWidget(btn_load)
         hl.addWidget(btn_matlab)
         hl.addStretch()
+        hl.addWidget(buttonRestartDevice)
 
         lay = QVBoxLayout(self)
         lay.addLayout(hl)
@@ -81,12 +83,19 @@ class MainWindow(QWidget):
         try:
             frequencies = self.impedanceAnalyser.GetFrequencyList()
             electrodes = self.impedanceAnalyser.GetExtensionPortChannel()
-            resImpedance, _, _, resTime, _, _ = self.impedanceAnalyser.GetMeasurements()  # Simulation als Default
-            data = EISData(resTime, frequencies, resImpedance, electrodes)
+            resReal, resImag, resWarn, resRange, resTime, startTime, finishTime = self.impedanceAnalyser.GetMeasurements()  # Simulation als Default
+            data = EISData(time = resTime, frequency = frequencies, electrodes = electrodes, realPart = resReal, imagPart = resImag)
             self._broadcast_data(data)
         except Exception as e:
             QMessageBox.critical(self, "Messung Fehler", str(e))
-            return
+
+    @Slot()
+    def restartDevice(self):
+        
+        try:
+            self.impedanceAnalyser.ResetSystem()
+        except Exception as e:
+            QMessageBox.critical(self, "Restart failed", str(e))
 
     # ------------------------------------------------------------------ #
     def _broadcast_data(self, data: EISData):
