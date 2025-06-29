@@ -1,5 +1,7 @@
 {
+    "pylint.enabled": true,
     "pylint.args": [
+        "--extension-pkg-whitelist=PyQt6,PySide6",
         "--disable=C0103",
         "--disable=C0114",
         "--disable=C0115",

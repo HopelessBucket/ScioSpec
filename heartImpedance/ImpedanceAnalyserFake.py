@@ -454,7 +454,7 @@ class ImpedanceAnalyserFake():
         return zReal, zImag, warn, CurrentRange(currentRange), timeOffset
     
     
-    def GetMeasurements(self) -> tuple[list, list, list, list, list, list]:
+    def GetMeasurements(self) -> tuple[list, list, list, list, str, str]:
         
         muxConfigLen = len(self.muxElConfig)
         resWarning = [[0 for _ in range(self.fnum)] for _ in range(muxConfigLen)]
@@ -464,8 +464,8 @@ class ImpedanceAnalyserFake():
         resTime = [[None for _ in range(self.fnum)] for _ in range(muxConfigLen)]
         
         counter = 0
-        startTime = []
-        finishTime = []
+        
+        startTime = datetime.datetime.now().isoformat(" ", "seconds")
         
         for idxElChunks in range(math.ceil(muxConfigLen / 128)):
             
@@ -476,8 +476,7 @@ class ImpedanceAnalyserFake():
             for _ in range(numMeas):
                 self.SetExtensionPortChannel(counter)
                 counter += 1
-                
-            startTime.append(datetime.datetime.now().isoformat(" ", "seconds"))
+            
             self.StartMeasure()
             
             for measIdx in range(numMeas):
@@ -491,7 +490,7 @@ class ImpedanceAnalyserFake():
                     resRange[measIdx + 128 * idxElChunks][freqIdx] = currentRange
                     resTime[measIdx + 128 * idxElChunks][freqIdx] = timeOffset
                     
-            finishTime.append(datetime.datetime.now().isoformat(" ", "seconds"))
+        finishTime = datetime.datetime.now().isoformat(" ", "seconds")
         
         return resReal, resImag, resWarning, resRange, resTime, startTime, finishTime
     #endregion

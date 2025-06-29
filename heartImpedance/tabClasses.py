@@ -3,26 +3,22 @@ import sys
 import pathlib
 import numpy as np
 from PySide6.QtWidgets import (
-    QApplication,
     QWidget,
     QVBoxLayout,
     QHBoxLayout,
-    QTabWidget,
-    QLabel,
     QPushButton,
-    QComboBox,
-    QFileDialog,
-    QMessageBox,
     QLineEdit,
-    QGridLayout,
+    QComboBox,
+    QLabel,
     QListWidget,
-    QListWidgetItem
+    QListWidgetItem,
+    QGridLayout
 )
 from PySide6.QtCore import Qt, Slot 
 from data_manager import EISData
 from plots import MplCanvas
 from ImpedanceAnalyser import ImpedanceAnalyser
-from EnumClasses import InjectionType, CurrentRange, FrequencyScale, FeMode, FeChannel, TimeStamp, ExternalModule, InternalModule
+from EnumClasses import InjectionType, CurrentRange, FrequencyScale, FeMode, FeChannel, TimeStamp
 
 
 class TimeseriesTab(QWidget):

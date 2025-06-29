@@ -8,7 +8,6 @@ class ImpedanceAnalyser():
     #region Constructor
     def __init__(self, comPort:str):
         # communication
-        # self.device = comPort
         self.device = serial.Serial(port=comPort, timeout=256000)
         self.timeout = 10
         
@@ -713,7 +712,7 @@ class ImpedanceAnalyser():
         return zReal, zImag, warn, CurrentRange(currentRange), timeOffset
     
     
-    def GetMeasurements(self) -> tuple[list, list, list, list, list, list, list]:
+    def GetMeasurements(self) -> tuple[list, list, list, list, list, str, str]:
         
         muxConfigLen = len(self.muxElConfig)
         resWarning = [[0 for _ in range(self.fnum)] for _ in range(muxConfigLen)]
@@ -723,8 +722,7 @@ class ImpedanceAnalyser():
         resTime = [[None for _ in range(self.fnum)] for _ in range(muxConfigLen)]
         
         counter = 0
-        startTime = []
-        finishTime = []
+        startTime = datetime.datetime.now().isoformat(" ", "seconds")
         
         for idxElChunks in range(math.ceil(muxConfigLen / 128)):
             
@@ -735,8 +733,7 @@ class ImpedanceAnalyser():
             for _ in range(numMeas):
                 self.SetExtensionPortChannel(counter)
                 counter += 1
-                
-            startTime.append(datetime.datetime.now().isoformat(" ", "seconds"))
+            
             self.StartMeasure()
             
             for measIdx in range(numMeas):
@@ -750,7 +747,7 @@ class ImpedanceAnalyser():
                     resRange[measIdx + 128 * idxElChunks][freqIdx] = currentRange
                     resTime[measIdx + 128 * idxElChunks][freqIdx] = timeOffset
                     
-            finishTime.append(datetime.datetime.now().isoformat(" ", "seconds"))
+        finishTime = datetime.datetime.now().isoformat(" ", "seconds")
         
         return resReal, resImag, resWarning, resRange, resTime, startTime, finishTime
     #endregion
