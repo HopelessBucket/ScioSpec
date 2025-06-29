@@ -23,7 +23,10 @@ class EISData:
         electrodes: np.ndarray | None = None,
         realPart: np.ndarray | None = None,
         imagPart: np.ndarray | None = None,
-        impedance: np.ndarray | None = None 
+        impedance: np.ndarray | None = None, 
+        startTime: str | None = None,
+        finishTime: str | None = None,
+        measurementIndex : int | None = None,
     ):
         self.time = np.asarray(time).ravel()
         self.frequency = np.asarray(frequency).ravel()
@@ -37,6 +40,9 @@ class EISData:
             self.realPart = np.real(impedance)
             self.imagPart = np.imag(impedance)
         self.electrodes = electrodes
+        self.startTime = startTime
+        self.finishTime = finishTime
+        self.measurementIndex = measurementIndex
 
     # ------------------------------------------------------------------ #
     #  Helper: |Z|, Phase, Admittance                                    #
