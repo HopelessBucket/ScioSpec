@@ -28,21 +28,28 @@ class EISData:
         finishTime: str | None = None,
         measurementIndex : int | None = None,
     ):
-        self.time = np.asarray(time).ravel()
-        self.frequency = np.asarray(frequency).ravel()
-        print(time, frequency, electrodes, realPart, imagPart, impedance)
+        self.time = np.asarray(time)
+        self.frequency = np.asarray(frequency).ravel()  # list[float]
         if realPart and imagPart:
-            self.impedance = np.asarray(complex(realPart[x], imagPart[x]) for x in range(len(realPart)))
-            self.realPart = np.asarray(realPart)
-            self.imagPart = np.asarray(imagPart)
+            self.impedance = np.asarray([[complex(realPart[i][x], imagPart[i][x]) for x in range(len(frequency))] for i in range(len(electrodes))]) # list[list[complex]]
+            self.realPart = np.asarray(realPart)        # list[list[float]]
+            self.imagPart = np.asarray(imagPart)        # list[list[float]]
         elif impedance:
-            self.impedance = impedance
+            self.impedance = impedance          
             self.realPart = np.real(impedance)
             self.imagPart = np.imag(impedance)
-        self.electrodes = electrodes
-        self.startTime = startTime
-        self.finishTime = finishTime
-        self.measurementIndex = measurementIndex
+        self.electrodes = electrodes                    # list[list[int]]
+        self.startTime = startTime                      # str
+        self.finishTime = finishTime                    # str
+        self.measurementIndex = measurementIndex        # int
+        # print(f"Frequencies: {self.frequency}")
+        # print(f"Electrodes{electrodes}")
+        # print(f"RealPart: {realPart}")
+        # print(f"ImagPart: {imagPart}")
+        # print(f"Time: {self.time}")
+        # print(f"Impedance: {self.impedance}")
+        # print(f"StartTime: {self.startTime}")
+        # print(f"FinishTime: {self.finishTime}")
 
     # ------------------------------------------------------------------ #
     #  Helper: |Z|, Phase, Admittance                                    #
