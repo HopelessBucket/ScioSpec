@@ -111,9 +111,6 @@ class ImpedanceAnalyserFake():
         if self.feChannel is FeChannel.BNC and len(self.muxElConfig) != 1:
             raise Exception("We measure with BNC, but have set multiple channels.")
         
-        if self.excitation is InjectionType.current and self.feRange is CurrentRange.rangeAuto:
-            raise Exception("Current measurement mode \"auto\" is not supported for Current injection.")
-        
         if self.feMode is FeMode.mode2pt:
             for combination in self.muxElConfig:
                 if combination[0] != combination[1] or combination[2] != combination[3] or combination[0] == combination[3]:

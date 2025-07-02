@@ -1,5 +1,5 @@
 import math, datetime
-import serial
+import serial, time
 from EnumClasses import CurrentRange, InjectionType, FrequencyScale, FeMode, FeChannel, TimeStamp, ExternalModule, InternalModule
 from HelperFunctions import GetHexSingle, GetFloatFromBytes
 import numpy as np
@@ -15,7 +15,7 @@ class ImpedanceAnalyser():
         self.feMode = FeMode.mode4pt
         self.feChannel = FeChannel.BNC
         self.feRange = CurrentRange.range10mA
-        self.muxElConfig = [[1, 2, 3, 4]]
+        self.muxElConfig = []
         
         # setup options
         self.precision = 1
@@ -73,7 +73,7 @@ class ImpedanceAnalyser():
     def SetPrecision(self, precision:float):
         
         if precision >= 0 and precision <= 10:
-            self.precision = np.float32(precision)
+            self.precision = precision
         else:
             raise Exception(f"Requested precision of {precision} is out of range [0, 10].")
     
@@ -88,7 +88,7 @@ class ImpedanceAnalyser():
     
     def SetExcitationAmplitude(self, amplitude:float):
         
-        self.amplitude = np.float32(amplitude)
+        self.amplitude = amplitude
         
         
     def SetTimeStamp(self, timeStamp:TimeStamp):
@@ -111,10 +111,7 @@ class ImpedanceAnalyser():
     def CheckSettings(self):
         if self.feChannel is FeChannel.BNC and len(self.muxElConfig) != 1:
             raise Exception("We measure with BNC, but have set multiple channels.")
-        
-        if self.excitation is InjectionType.current and self.feRange is CurrentRange.rangeAuto:
-            raise Exception("Current measurement mode \"auto\" is not supported for Current injection.")
-        
+
         if self.feMode is FeMode.mode2pt:
             for combination in self.muxElConfig:
                 if combination[0] != combination[1] or combination[2] != combination[3] or combination[0] == combination[3]:
@@ -141,8 +138,9 @@ class ImpedanceAnalyser():
         self.SetExcitationAmplitude(excitationAmplitude)
         self.SetTimeStamp(timestamp)
         
-        self.CheckSettings()
+        print(f"Precision: {precision}, amplitude: {excitationAmplitude}")
         self.SetSetup()
+        self.SetFeSettings()
         self.SetOptions()
     #endregion
     
@@ -154,6 +152,7 @@ class ImpedanceAnalyser():
         msg = bytes()
         while True:
             frame = self.ReadFrame()
+            print(list(frame))
             if self.IsAck(frame):
                 ack = frame[2]
                 self.WarningACK(ack)
@@ -279,13 +278,13 @@ class ImpedanceAnalyser():
         msg = self.SendAndReceive(command)
         
         if msg[2] == 1 and msg[3] == 0:
-            return TimeStamp.off
+            self.resTimeStamp = TimeStamp.off
         if msg[2] == 1 and msg[3] == 1:
-            return TimeStamp.ms
-        if msg[2] == 2 and msg[3] == 1:
-            return TimeStamp.us
+            self.resTimeStamp = TimeStamp.ms
+        if msg[2] == 1 and msg[3] == 2:
+            self.resTimeStamp = TimeStamp.us
         
-        return None
+        return self.resTimeStamp
     
     
     def ResetSystem(self):
@@ -321,6 +320,7 @@ class ImpedanceAnalyser():
         mode = None
         for measMode in FeMode:
             if msg[2] == measMode.value:
+                self.feMode = measMode
                 mode = measMode
                 break
         
@@ -328,6 +328,7 @@ class ImpedanceAnalyser():
         channel = None
         for measChannel in FeChannel:
             if msg[3] == measChannel.value:
+                self.feChannel = measChannel
                 channel = measChannel
                 break
         
@@ -335,8 +336,10 @@ class ImpedanceAnalyser():
         currRange = None
         for possRange in CurrentRange:
             if msg[4] == possRange.value:
+                self.feRange = possRange
                 currRange = possRange
                 break
+        
         
         return mode, channel, currRange
     
@@ -370,7 +373,7 @@ class ImpedanceAnalyser():
         command = bytearray([0xB3, 0x00, 0xB3])
         msg = self.SendAndReceive(command)
         
-        return list(msg[2:-1])
+        return [list(msg[x:x+4]) for x in range(2, len(msg) - 1, 4)]
     
     
     def GetExtensionPortModule(self) -> tuple[ExternalModule | None, InternalModule | None, int | None, int | None]:
@@ -452,7 +455,7 @@ class ImpedanceAnalyser():
             tuple(float, float, float): (frequency[Hz], precision, amplitude)
         """
         
-        command = bytes([0xB7, 0x03]) + frequencyPoint.to_bytes(2, "big") + bytes([0xB7])
+        command = bytes([0xB7, 0x03, 0x02]) + frequencyPoint.to_bytes(2, "big") + bytes([0xB7])
         msg = self.SendAndReceive(command)
         
         frequency = GetFloatFromBytes(msg[3:7])
@@ -512,6 +515,12 @@ class ImpedanceAnalyser():
         command = bytes([0xB8, 0x03, 0x01, 0x00, 0x01, 0xB8])
         self.SendAndReceive(command)
     
+    def StopMeasure(self):
+        """0xB8 - Stop Measure
+        """
+        
+        command = bytes([0xB8, 0x01, 0x00, 0xB8])
+        self.SendAndReceive(command)
     
     def SetSyncTime(self, syncTime:int):
         """0xB9 - Set Sync Time
@@ -714,6 +723,8 @@ class ImpedanceAnalyser():
     
     def GetMeasurements(self) -> tuple[list, list, list, list, list, str, str]:
         
+        self.CheckSettings()
+        
         muxConfigLen = len(self.muxElConfig)
         resWarning = [[0 for _ in range(self.fnum)] for _ in range(muxConfigLen)]
         resReal = [[None for _ in range(self.fnum)] for _ in range(muxConfigLen)]
@@ -746,7 +757,7 @@ class ImpedanceAnalyser():
                     resWarning[measIdx + 128 * idxElChunks][freqIdx] = warn
                     resRange[measIdx + 128 * idxElChunks][freqIdx] = currentRange
                     resTime[measIdx + 128 * idxElChunks][freqIdx] = timeOffset
-                    
+            
         finishTime = datetime.datetime.now().isoformat(" ", "seconds")
         
         return resReal, resImag, resWarning, resRange, resTime, startTime, finishTime

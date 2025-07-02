@@ -19,7 +19,7 @@ repetitionTime = 0.2
 # For excitation type and current range use the enum classes
 excitationType = InjectionType.voltage
 excitationValue = 0.5
-currentRange = CurrentRange.rangeAuto
+currentRange = CurrentRange.range10mA
 
 zMin, zMax = CalculateValidImpedanceRange(excitationType, excitationValue, currentRange)
 

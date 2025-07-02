@@ -5,7 +5,6 @@ class InjectionType(Enum):
     current = 0x02
 
 class CurrentRange(Enum):
-    rangeAuto = 0x00
     range10mA =  0x01
     range100uA = 0x02
     range1uA = 0x04

@@ -6,6 +6,7 @@ Startet das GUI – Timeseries, Spectra, Derived Value.
 """
 from __future__ import annotations
 import sys
+import time
 import pathlib
 from PySide6.QtWidgets import (
     QApplication,
@@ -22,7 +23,7 @@ from PySide6.QtWidgets import (
     QLabel
 )
 from PySide6.QtCore import Slot
-from additionalClasses import MeasurementWorker, UnitComboBox
+from additionalClasses import MeasurementWorker, UnitComboBox, RestartWorker
 from data_manager import load_measurement, EISData
 from tabClasses import SettingsTab, SpectraTab, TimeseriesTab, DerivedTab
 from ImpedanceAnalyser import ImpedanceAnalyser
@@ -35,8 +36,9 @@ class MainWindow(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("EIS‑GUI (ISX‑3)")
-        self.impedanceAnalyser = ImpedanceAnalyserFake("COM3")
+        self.impedanceAnalyser = ImpedanceAnalyser("COM5")
         self.measWorker = None
+        self.restartWorker = None
 
         # Tabs
         self.tabs = QTabWidget()
@@ -130,7 +132,10 @@ class MainWindow(QWidget):
     def RestartDevice(self):
         
         try:
-            self.impedanceAnalyser.ResetSystem()
+            self.SetAllButtonsEnabled(False)
+            self.restartWorker = RestartWorker(self.impedanceAnalyser)
+            self.restartWorker.restartFinished.connect(self.SetAllButtonsEnabled)
+            self.restartWorker.start()
         except Exception as e:
             QMessageBox.critical(self, "Restart failed", str(e))
     
