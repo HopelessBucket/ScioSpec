@@ -5,27 +5,13 @@ main.py
 Startet das GUI – Timeseries, Spectra, Derived Value.
 """
 from __future__ import annotations
-import sys
-import time
-import pathlib
-from PySide6.QtWidgets import (
-    QApplication,
-    QWidget,
-    QVBoxLayout,
-    QHBoxLayout,
-    QTabWidget,
-    QPushButton,
-    QFileDialog,
-    QMessageBox,
-    QRadioButton,
-    QButtonGroup,
-    QLineEdit,
-    QLabel
-)
+import sys, time
+import pathlib, serial
+from PySide6.QtWidgets import QApplication,QWidget, QVBoxLayout, QHBoxLayout, QTabWidget, QPushButton, QFileDialog, QMessageBox, QRadioButton, QButtonGroup,QLineEdit, QLabel, QDialog
 from PySide6.QtCore import Slot
-from additionalClasses import MeasurementWorker, UnitComboBox, RestartWorker
-from data_manager import load_measurement, EISData
-from tabClasses import SettingsTab, SpectraTab, TimeseriesTab, DerivedTab
+from AdditionalClasses import MeasurementWorker, UnitComboBox, RestartWorker, StartupPopup
+from DataManager import load_measurement, EISData
+from TabClasses import SettingsTab, BodeDiagramTab, TimeSeriesTab, DerivedValueTab
 from ImpedanceAnalyser import ImpedanceAnalyser
 from ImpedanceAnalyserFake import ImpedanceAnalyserFake
 
@@ -35,24 +21,37 @@ from ImpedanceAnalyserFake import ImpedanceAnalyserFake
 class MainWindow(QWidget):
     def __init__(self):
         super().__init__()
+        
+        dialog = StartupPopup()
         self.setWindowTitle("EIS‑GUI (ISX‑3)")
-        self.impedanceAnalyser = ImpedanceAnalyser("COM5")
+        comPort = ""
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            comPort = dialog.getUserComPort()
+        
+        if comPort == "":
+            self.impedanceAnalyser = ImpedanceAnalyserFake("COM5")
+        else:
+            try:
+                self.impedanceAnalyser = ImpedanceAnalyser("COM5")
+            except serial.SerialException as e:
+                QMessageBox.critical(self, "Connection unsuccessful", f"The connection with port: {comPort} was unsuccessful. Error message: " + str(e))
+            
         self.measWorker = None
         self.restartWorker = None
 
         # Tabs
         self.tabs = QTabWidget()
         self.tabSettings = SettingsTab(self.impedanceAnalyser)
-        self.tab_time = TimeseriesTab()
-        self.tab_spec = SpectraTab()
-        self.tab_derived = DerivedTab()
+        self.tabBode = BodeDiagramTab()
+        self.tabTimeSeries = TimeSeriesTab()
+        self.tabDerived = DerivedValueTab()
         self.tabs.addTab(self.tabSettings, "Settings")
-        self.tabs.addTab(self.tab_time, "Timeseries")
-        self.tabs.addTab(self.tab_spec, "Current Spectra")
-        self.tabs.addTab(self.tab_derived, "Derived Value")
+        self.tabs.addTab(self.tabBode, "Bode")
+        self.tabs.addTab(self.tabTimeSeries, "Time Series")
+        self.tabs.addTab(self.tabDerived, "Derived value")
 
         # Buttons
-        self.btn_load = QPushButton("Daten laden")
+        self.btn_load = QPushButton("Load data")
         self.btn_matlab = QPushButton("Run Single Measurement")
         self.buttonRestartDevice = QPushButton("Restart device")
         self.buttonRunLoopMeasurement = QPushButton("Run Multiple Measurements")
@@ -122,6 +121,7 @@ class MainWindow(QWidget):
         try:
             self.SetAllButtonsEnabled(False)
             self.measWorker = MeasurementWorker(self.impedanceAnalyser, False, 1, 0)
+            self.measWorker.resultReady.connect(self._broadcast_data)
             self.measWorker.finished.connect(self.SetAllButtonsEnabled)
             self.measWorker.start()
         
@@ -192,9 +192,11 @@ class MainWindow(QWidget):
 
     # ------------------------------------------------------------------ #
     def _broadcast_data(self, data: EISData):
-        self.tab_time.set_data(data)
-        self.tab_spec.set_data(data)
-        self.tab_derived.set_data(data)
+        startTime = time.time()
+        self.tabBode.update_data(data)
+        self.tabTimeSeries.update_data(data)
+        self.tabDerived.update_data(data)
+        print(time.time() - startTime)
 
 # ---------------------------------------------------------------------- #
 if __name__ == "__main__":

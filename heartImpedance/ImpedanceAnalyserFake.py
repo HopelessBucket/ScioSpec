@@ -2,6 +2,7 @@ import math, datetime
 from EnumClasses import CurrentRange, InjectionType, FrequencyScale, FeMode, FeChannel, TimeStamp, ExternalModule, InternalModule
 from HelperFunctions import GetHexSingle, GetFloatFromBytes
 import numpy as np
+import random
 class ImpedanceAnalyserFake():
     
     #region Constructor
@@ -14,7 +15,7 @@ class ImpedanceAnalyserFake():
         self.feMode = FeMode.mode4pt
         self.feChannel = FeChannel.BNC
         self.feRange = CurrentRange.range10mA
-        self.muxElConfig = [[1, 2, 3, 4]]
+        self.muxElConfig = []
         
         # setup options
         self.precision = 1
@@ -108,8 +109,8 @@ class ImpedanceAnalyserFake():
     
     
     def CheckSettings(self):
-        if self.feChannel is FeChannel.BNC and len(self.muxElConfig) != 1:
-            raise Exception("We measure with BNC, but have set multiple channels.")
+        # if self.feChannel is FeChannel.BNC and len(self.muxElConfig) != 1:
+        #     raise Exception("We measure with BNC, but have set multiple channels.")
         
         if self.feMode is FeMode.mode2pt:
             for combination in self.muxElConfig:
@@ -191,14 +192,10 @@ class ImpedanceAnalyserFake():
         command = bytes([0x98, 0x01, 0x01, 0x98])
         print(list(command))
         
-        msg = bytes([0x98, 0x02, 0x01, 0x01, 0x98])
+        msg = bytes([0x98, 0x02, 0x01, self.resTimeStamp.value, 0x98])
         
-        if msg[2] == 1 and msg[3] == 0:
-            return TimeStamp.off
-        if msg[2] == 1 and msg[3] == 1:
-            return TimeStamp.ms
-        if msg[2] == 2 and msg[3] == 1:
-            return TimeStamp.us
+        if msg[2] == 1:
+            return TimeStamp(msg[3])
         
         return None
     
@@ -232,7 +229,7 @@ class ImpedanceAnalyserFake():
         command = bytes([0xB1, 0x00, 0xB1])
         print(list(command))
         
-        msg = bytes([0xB1, 0x03, 0x03, 0x02, 0x04, 0xB1])
+        msg = bytes([0xB1, 0x03, self.feMode.value, self.feChannel.value, self.feRange.value, 0xB1])
         # measurement mode
         mode = FeMode(msg[2])
         channel = FeChannel(msg[3])
@@ -269,9 +266,14 @@ class ImpedanceAnalyserFake():
         
         command = bytearray([0xB3, 0x00, 0xB3])
         print(list(command))
-        msg = bytes([0xB3, 0x04, 0x05, 0x06, 0x07, 0x08, 0xB3])
+        muxNumber = len(self.muxElConfig)
+        msg = [0xB3, muxNumber * 4]
+        for config in self.muxElConfig:           
+            msg.extend(config)
+        msg.append(0xB3)
+        msg = bytes(msg)
         
-        return list(msg[2:-1])
+        return [list(msg[x:x+4]) for x in range(2, len(msg) - 1, 4)]
     
     
     def GetExtensionPortModule(self) -> tuple[ExternalModule | None, InternalModule | None, int | None, int | None]:
@@ -341,8 +343,7 @@ class ImpedanceAnalyserFake():
         
         command = bytes([0xB7, 0x01, 0x01, 0xB7])
         print(list(command))
-        
-        msg = bytes([0xB7, 0x02, 0x00, 0x15, 0xB7])
+        msg = bytes([0xB7, 0x02]) + int.to_bytes(self.fnum, 2) + bytes([0xB7])
         
         return int.from_bytes(msg[3:5], "big")
     
@@ -359,8 +360,8 @@ class ImpedanceAnalyserFake():
         
         command = bytes([0xB7, 0x03]) + frequencyPoint.to_bytes(2, "big") + bytes([0xB7])
         print(list(command))
+        msg = bytes([0xB7, 0x0D, 0x02]) + bytes(GetHexSingle(self.fmin) + GetHexSingle(self.precision) + GetHexSingle(self.amplitude)) + bytes([0xB7])
         
-        msg = bytes([0xB7, 0x0D, 0x02, 0x23, 0x12, 0x00, 0x00, 0x15, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0xB7])
         
         frequency = GetFloatFromBytes(msg[3:7])
         precision = GetFloatFromBytes(msg[7:11])
@@ -380,39 +381,7 @@ class ImpedanceAnalyserFake():
         if self.fscale is FrequencyScale.logarithmic:
             return np.geomspace(self.fmin, self.fmax, self.fnum)
         else:
-            return np.geomspace(self.fmin, self.fmax, self.fnum)
-    
-    
-    def SaveSetupToSlot(self, slot:int):
-        """0xB7 - Get Setup - Save Setup to Slot
-
-        Args:
-            slot (int): slot number between 1 and 255
-
-        Raises:
-            ValueError: _description_
-        """
-        
-        if slot < 1 or slot > 255:
-            raise ValueError("Slot must be of one byte size.")
-        
-        command = bytes([0xB7, 0x02, 0x20, slot, 0xB7])
-        print(list(command))
-    
-    
-    def GetDCBias(self) -> float:
-        """0xB7 - Get Setup - Get DC Bias
-
-        Returns:
-            float: dc bias in volts
-        """
-        
-        command = bytes([0xB7, 0x01, 0x33, 0xB7])
-        print(list(command))
-        
-        msg = bytes([0xB7, 0x05, 0x33, 0x05, 0x00, 0x00, 0x00])
-        
-        return GetFloatFromBytes(msg[3:7])
+            return np.linspace(self.fmin, self.fmax, self.fnum)
     
     
     def StartMeasure(self):
@@ -478,7 +447,7 @@ class ImpedanceAnalyserFake():
             
             for measIdx in range(numMeas):
                 for freqIdx in range(self.fnum):
-                    results = bytes([184, 11, 0, 0, 1, 198, 136, 28, 106, 198, 149, 112, 104, 184])
+                    results = bytes([184, 11, 0, 0, 1, random.randint(0, 255), random.randint(0, 255), random.randint(0, 255), random.randint(0, 255), random.randint(0, 255), random.randint(0, 255), random.randint(0, 255), random.randint(0, 255), 184])
                     real, imag, warn, currentRange, timeOffset = self.DeserializeResults(results)
                     
                     resReal[measIdx + 128 * idxElChunks][freqIdx] = real
