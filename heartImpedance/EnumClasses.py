@@ -25,9 +25,9 @@ class FeChannel(Enum):
     InternalMux = 0x03
     
 class TimeStamp(Enum):
-    off = "off"
-    ms = "ms"
-    us = "us"
+    off = 0x00
+    ms = 0x01
+    us = 0x02
 
 class ExternalModule(Enum):
     NoModule = 0x00

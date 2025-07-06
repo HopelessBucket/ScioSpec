@@ -1,7 +1,7 @@
 import time
-from PySide6.QtWidgets import QComboBox
+from PySide6.QtWidgets import QComboBox, QDialog, QLabel, QLineEdit, QPushButton, QVBoxLayout
 from PySide6.QtCore import QThread, Signal
-from data_manager import EISData
+from DataManager import EISData
 from ImpedanceAnalyser import ImpedanceAnalyser
 
 class MeasurementWorker(QThread):
@@ -28,11 +28,11 @@ class MeasurementWorker(QThread):
                     resReal, resImag, _, _, resTime, startTime, finishTime = self.impedanceAnalyser.GetMeasurements()
                     frequencies = self.impedanceAnalyser.GetFrequencyList()
                     electrodes = self.impedanceAnalyser.GetExtensionPortChannel()
-                    data = EISData( time = resTime, 
-                                    frequency = frequencies, 
+                    data = EISData( timeStamp = resTime, 
+                                    frequencies = frequencies, 
                                     electrodes = electrodes, 
-                                    realPart = resReal, 
-                                    imagPart = resImag, 
+                                    realParts = resReal, 
+                                    imagParts = resImag, 
                                     startTime=startTime, 
                                     finishTime=finishTime)
                     self.resultReady.emit(data)
@@ -44,11 +44,11 @@ class MeasurementWorker(QThread):
                     resReal, resImag, _, _, resTime, startTime, finishTime = self.impedanceAnalyser.GetMeasurements()
                     frequencies = self.impedanceAnalyser.GetFrequencyList()
                     electrodes = self.impedanceAnalyser.GetExtensionPortChannel()
-                    data = EISData( time = resTime, 
-                                    frequency = frequencies, 
+                    data = EISData( timeStamp = resTime, 
+                                    frequencies = frequencies, 
                                     electrodes = electrodes, 
-                                    realPart = resReal, 
-                                    imagPart = resImag, 
+                                    realParts = resReal, 
+                                    imagParts = resImag, 
                                     startTime=startTime, 
                                     finishTime=finishTime, 
                                     measurementIndex=measIndex)
@@ -75,7 +75,6 @@ class RestartWorker(QThread):
         self.impedanceAnalyser.device.open()
         self.restartFinished.emit(True)
 
-
 class UnitComboBox(QComboBox):
     
     def __init__(self):
@@ -97,3 +96,30 @@ class UnitComboBox(QComboBox):
                 durationMs = 3600000 * lineEditValue
         
         return durationMs
+
+class StartupPopup(QDialog):
+    
+    def __init__(self):
+        
+        super().__init__()
+        self.setWindowTitle("COM-Port input")
+        
+        # Defining controls
+        self.label = QLabel("Enter COM-Port used by the device:")
+        self.userInput = QLineEdit(text="COM5")
+        self.okButton = QPushButton("OK")
+        
+        # Adding all controls to layout
+        layout = QVBoxLayout()
+        layout.addWidget(self.label)
+        layout.addWidget(self.userInput)
+        layout.addWidget(self.okButton)
+        layout.setSpacing(10)
+        layout.setContentsMargins(12, 12, 12, 12)
+        self.setLayout(layout)
+        
+        # Connecting buttons
+        self.okButton.clicked.connect(self.accept)
+    
+    def getUserComPort(self):
+        return self.userInput.text()

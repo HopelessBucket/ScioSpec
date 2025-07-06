@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 from scipy.io import loadmat
 import h5py
+import time
 from typing import List, Tuple
 
 
@@ -18,36 +19,38 @@ class EISData:
 
     def __init__(
         self,
-        time: np.ndarray,
-        frequency: np.ndarray,
+        timeStamp: np.ndarray,
+        frequencies: np.ndarray,
         electrodes: np.ndarray | None = None,
-        realPart: np.ndarray | None = None,
-        imagPart: np.ndarray | None = None,
-        impedance: np.ndarray | None = None, 
+        realParts: np.ndarray | None = None,
+        imagParts: np.ndarray | None = None,
+        impedances: np.ndarray | None = None, 
         startTime: str | None = None,
         finishTime: str | None = None,
         measurementIndex : int | None = None,
     ):
-        self.time = np.asarray(time)
-        self.frequency = np.asarray(frequency).ravel()  # list[float]
-        if realPart and imagPart:
-            self.impedance = np.asarray([[complex(realPart[i][x], imagPart[i][x]) for x in range(len(frequency))] for i in range(len(electrodes))]) # list[list[complex]]
-            self.realPart = np.asarray(realPart)        # list[list[float]]
-            self.imagPart = np.asarray(imagPart)        # list[list[float]]
-        elif impedance:
-            self.impedance = impedance          
-            self.realPart = np.real(impedance)
-            self.imagPart = np.imag(impedance)
+        self.timeStamps = np.asarray(timeStamp)
+        self.frequencies = np.asarray(frequencies).ravel()  # list[float]
+        if realParts and imagParts:
+            self.impedances = np.asarray([[complex(realParts[i][x], imagParts[i][x]) for x in range(len(frequencies))] for i in range(len(electrodes))]) # list[list[complex]]
+            self.realParts = np.asarray(realParts)        # list[list[float]]
+            self.imagParts = np.asarray(imagParts)        # list[list[float]]
+        elif impedances:
+            self.impedances = impedances          
+            self.realParts = np.real(impedances)
+            self.imagParts = np.imag(impedances) 
         self.electrodes = electrodes                    # list[list[int]]
         self.startTime = startTime                      # str
         self.finishTime = finishTime                    # str
+        self.startTimeShort = startTime.split(" ")[1]
+        self.finishTimeShort = finishTime.split(" ")[1]
         self.measurementIndex = measurementIndex        # int
-        # print(f"Frequencies: {self.frequency}")
+        # print(f"Frequencies: {self.frequencies}")
         # print(f"Electrodes{electrodes}")
-        # print(f"RealPart: {realPart}")
-        # print(f"ImagPart: {imagPart}")
-        # print(f"Time: {self.time}")
-        # print(f"Impedance: {self.impedance}")
+        # print(f"RealPart: {realParts}")
+        # print(f"ImagPart: {imagParts}")
+        # print(f"Time: {self.timeStamps}")
+        # print(f"Impedance: {self.impedances}")
         # print(f"StartTime: {self.startTime}")
         # print(f"FinishTime: {self.finishTime}")
 
@@ -55,19 +58,27 @@ class EISData:
     #  Helper: |Z|, Phase, Admittance                                    #
     # ------------------------------------------------------------------ #
     @property
-    def magnitude(self) -> np.ndarray:
-        return np.abs(self.impedance)
+    def magnitudesZ(self) -> np.ndarray:
+        return np.abs(self.impedances)
 
     @property
-    def phase(self) -> np.ndarray:
-        return np.angle(self.impedance, deg=True)
+    def phasesZ(self) -> np.ndarray:
+        return np.angle(self.impedances, deg=True)
 
     @property
-    def admittance(self) -> np.ndarray:
+    def admittances(self) -> np.ndarray:
         with np.errstate(divide="ignore", invalid="ignore"):
-            y = 1.0 / self.impedance
+            y = 1.0 / self.impedances
             y[np.isinf(y)] = np.nan
         return y
+    
+    @property
+    def magnitudesY(self) -> np.ndarray:
+        return np.abs(self.admittances)
+    
+    @property
+    def phasesY(self) -> np.ndarray:
+        return np.angle(self.admittances, deg=True)
 
 
 # ---------------------------------------------------------------------- #
@@ -86,7 +97,7 @@ def _load_mat_file(path: pathlib.Path) -> EISData:
     t = dat.get("resTimeOffset") or np.arange(z.shape[0])
     el = dat.get("resElectrodes")
 
-    return EISData(time=t, frequency=fvec, impedance=z, electrodes=el)
+    return EISData(timeStamp=t, frequencies=fvec, impedances=z, electrodes=el)
 
 
 def _to_complex(vec):
@@ -120,4 +131,4 @@ def _load_spec(path: pathlib.Path) -> EISData:
     time = df["Time"].to_numpy()
     freq = df["Frequency"].to_numpy()
     z = df["Zreal"].to_numpy() + 1j * df["Zimag"].to_numpy()
-    return EISData(time=time, frequency=freq, impedance=z)
+    return EISData(timeStamp=time, frequencies=freq, impedances=z)
