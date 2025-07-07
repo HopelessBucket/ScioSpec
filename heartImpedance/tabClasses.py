@@ -7,191 +7,8 @@ from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QL
 from PySide6.QtCore import Qt, Slot
 from PySide6.QtGui import QFont
 from DataManager import EISData
-from Plots import MplCanvas
 from ImpedanceAnalyser import ImpedanceAnalyser
 from EnumClasses import InjectionType, CurrentRange, FrequencyScale, FeMode, FeChannel, TimeStamp
-
-
-class TimeseriesTab(QWidget):
-    def __init__(self):
-        super().__init__()
-        self.data: EISData | None = None
-
-        # Widgets
-        self.canvas_mag = MplCanvas()
-        self.canvas_phase = MplCanvas()
-        self.cbo_quantity = QComboBox()
-        self.cbo_quantity.addItems(["Impedance", "Admittance"])
-        self.cbo_el = QComboBox()
-        self.cbo_freq = QComboBox()
-        self.comboBoxMeasurement = QComboBox()
-
-        # Layout
-        top = QHBoxLayout()
-        top.addWidget(QLabel("Measurand:"))
-        top.addWidget(self.cbo_quantity)
-        top.addWidget(QLabel("Electrodes:"))
-        top.addWidget(self.cbo_el)
-        top.addWidget(QLabel("Frequency:"))
-        top.addWidget(self.cbo_freq)
-        top.addStretch()
-        top.addWidget(QLabel("Measurement:"))
-        top.addWidget(self.comboBoxMeasurement)
-
-        lay = QVBoxLayout(self)
-        lay.addLayout(top)
-        lay.addWidget(self.canvas_mag, stretch=1)
-        lay.addWidget(self.canvas_phase, stretch=1)
-
-        # Signals
-        self.cbo_quantity.currentIndexChanged.connect(self.repaint_plots)
-        self.cbo_el.currentIndexChanged.connect(self.repaint_plots)
-        self.cbo_freq.currentIndexChanged.connect(self.repaint_plots)
-
-    # ------------------------------------------------------------------ #
-    def set_data(self, data: EISData):
-        self.data = data
-        # Kombinations‑/Frequenz‑Dropdowns befüllen
-        self.cbo_el.clear()
-        self.cbo_el.addItems([str(x) for x in data.electrodes])
-
-        self.cbo_freq.clear()
-        self.cbo_freq.addItems([f"{f:.3g}" for f in data.frequencies])
-        self.repaint_plots()
-
-    # ------------------------------------------------------------------ #
-    @Slot()
-    def repaint_plots(self):
-        if self.data is None:
-            return
-        idx_f = self.cbo_freq.currentIndex()
-        idx_el = self.cbo_el.currentIndex()
-        z = self.data.impedances.reshape(-1, len(self.data.frequencies))
-        z = z[idx_el, idx_f]
-
-        ydata = 1 / z if self.cbo_quantity.currentText() == "Admittanz" else z
-        self.canvas_mag.clear()
-        self.canvas_phase.clear()
-
-        self.canvas_mag.axes.set_xlabel("Zeitindex")
-        self.canvas_mag.axes.set_ylabel("|{}|".format(self.cbo_quantity.currentText()))
-        self.canvas_phase.axes.set_xlabel("Zeitindex")
-        self.canvas_phase.axes.set_ylabel("Phase [°]")
-
-        self.canvas_mag.axes.plot(self.data.timeStamps, np.abs(ydata))
-        self.canvas_phase.axes.plot(self.data.timeStamps, np.angle(ydata, deg=True))
-        self.canvas_mag.draw_idle()
-        self.canvas_phase.draw_idle()
-
-
-class SpectraTab(QWidget):
-    def __init__(self):
-        super().__init__()
-        self.currentData: EISData | None = None
-        self.savedData: list[EISData] = []
-
-        # Controls
-        self.canvas = MplCanvas()
-        self.cbo_quantity = QComboBox()
-        self.cbo_quantity.addItems(["Impedance", "Admittance"])
-        self.cbo_el = QComboBox()
-        self.cbo_measurement = QComboBox()
-
-        # Layout
-        top = QHBoxLayout()
-        top.addWidget(QLabel("Measurand:"))
-        top.addWidget(self.cbo_quantity)
-        top.addWidget(QLabel("Electrodes:"))
-        top.addWidget(self.cbo_el)
-        top.addWidget(QLabel("Measurement:"))
-        top.addWidget(self.cbo_measurement)
-        top.addStretch()
-
-        lay = QVBoxLayout(self)
-        lay.addLayout(top)
-        lay.addWidget(self.canvas, stretch=1)
-
-        # Signals
-        self.cbo_quantity.currentIndexChanged.connect(self.repaint_plot)
-        self.cbo_el.currentIndexChanged.connect(self.repaint_plot)
-        self.cbo_measurement.currentIndexChanged.connect(self.repaint_plot)
-
-    def set_data(self, data: EISData):
-        self.currentData = data
-        self.cbo_el.clear()
-        self.cbo_el.addItems([str(x) for x in data.electrodes])
-        self.cbo_measurement.clear()
-        self.cbo_measurement.addItems(f"{data.measurementIndex}: {data.startTime} - {data.finishTime}")
-        self.repaint_plot()
-
-    @Slot()
-    def repaint_plot(self):
-        if self.currentData is None:
-            return
-        idx_el = self.cbo_el.currentIndex()
-        idx_t = self.cbo_measurement.currentIndex()
-        z = self.currentData.impedances.reshape(-1, len(self.currentData.frequencies))
-        z = z[idx_el, :]
-        self.canvas.bode(self.currentData.frequencies, z, show_admitt=self.cbo_quantity.currentText() == "Admittanz")
-
-
-class DerivedTab(QWidget):
-    def __init__(self):
-        super().__init__()
-        self.data: EISData | None = None
-        # Controls
-        self.canvas = MplCanvas()
-        self.cbo_value = QComboBox()
-        self.cbo_value.addItems(["|Z|", "|Y|", "Phase(Z)", "Phase(Y)"])
-        self.cbo_el = QComboBox()
-        self.cbo_freq = QComboBox()
-        # Layout
-        top = QHBoxLayout()
-        top.addWidget(QLabel("Wert:"))
-        top.addWidget(self.cbo_value)
-        top.addWidget(QLabel("El. Comb.:"))
-        top.addWidget(self.cbo_el)
-        top.addWidget(QLabel("Frequenz:"))
-        top.addWidget(self.cbo_freq)
-        top.addStretch()
-        lay = QVBoxLayout(self)
-        lay.addLayout(top)
-        lay.addWidget(self.canvas, stretch=1)
-        # Signals
-        self.cbo_value.currentIndexChanged.connect(self.repaint_plot)
-        self.cbo_el.currentIndexChanged.connect(self.repaint_plot)
-        self.cbo_freq.currentIndexChanged.connect(self.repaint_plot)
-
-    def set_data(self, data: EISData):
-        self.data = data
-        self.cbo_el.clear()
-        self.cbo_el.addItems([str(x) for x in data.electrodes])
-        self.cbo_freq.clear()
-        self.cbo_freq.addItems([f"{f:.3g}" for f in data.frequencies])
-        self.repaint_plot()
-
-    @Slot()
-    def repaint_plot(self):
-        if self.data is None:
-            return
-        idx_el = self.cbo_el.currentIndex()
-        idx_f = self.cbo_freq.currentIndex()
-        z = self.data.impedances.reshape(-1, len(self.data.frequencies))
-        z = z[idx_el, idx_f]
-
-        mapping = {
-            "|Z|": np.abs(z),
-            "|Y|": np.abs(1 / z),
-            "Phase(Z)": np.angle(z, deg=True),
-            "Phase(Y)": np.angle(1 / z, deg=True),
-        }
-        y = mapping[self.cbo_value.currentText()]
-
-        self.canvas.clear()
-        self.canvas.axes.set_xlabel("Zeitindex")
-        self.canvas.axes.set_ylabel(self.cbo_value.currentText())
-        self.canvas.axes.plot(self.data.timeStamps, y)
-        self.canvas.draw_idle()
 
 class SettingsTab(QWidget):
     def __init__(self, impedanceAnalyser:ImpedanceAnalyser):
@@ -380,15 +197,14 @@ class BodeDiagramTab(QWidget):
         super().__init__(parent)
         self.data = None
         self.savedData:list[EISData] = []
-        self.currentElCombIndex = None
         self.mode = "Z"
         self.initUI()
 
     def initUI(self):
 
-        self.setWindowTitle("Bode Diagram Viewer")
-        self.setGeometry(300, 150, 1000, 600)
-        self.setStyleSheet("background-color: #f0f0f0;")
+        # self.setWindowTitle("Bode Diagram Viewer")
+        # self.setGeometry(300, 150, 1000, 600)
+        # self.setStyleSheet("background-color: #f0f0f0;")
 
         layout = QVBoxLayout()
 
@@ -396,17 +212,18 @@ class BodeDiagramTab(QWidget):
         control_layout = QHBoxLayout()
         labelMeasurement = QLabel("Measurement:")
         self.measurementComboBox = QComboBox()
-        self.measurementComboBox.currentIndexChanged.connect(self.measurementComboBoxSelectionChanged)
+        self.measurementComboBox.setMinimumWidth(120)
+        self.measurementComboBox.currentIndexChanged.connect(self.update_plot)
         labelElComb = QLabel("Electrode Combination:")
         labelElComb.setFont(QFont("Arial", 12))
-        labelElComb.setStyleSheet("color: #000000;")
+        # labelElComb.setStyleSheet("color: #000000;")
         self.electrodeComboBox = QComboBox()
-        self.electrodeComboBox.currentIndexChanged.connect(self.electrodeComboBoxSelectionChanged)
-        self.lastElectrodeCombination = None
+        self.electrodeComboBox.currentIndexChanged.connect(self.update_plot)
         control_layout.addWidget(labelMeasurement)
         control_layout.addWidget(self.measurementComboBox)
         control_layout.addWidget(labelElComb)
         control_layout.addWidget(self.electrodeComboBox)
+        control_layout.addStretch()
 
         self.z_button = QPushButton("Z: Impedance")
         self.y_button = QPushButton("Y: Admittance")
@@ -482,25 +299,17 @@ class BodeDiagramTab(QWidget):
     def set_mode_y(self):
         self.mode = "Y"
         self.update_plot()
-    
-    def measurementComboBoxSelectionChanged(self):
-        
-        self.data = self.savedData[self.measurementComboBox.currentIndex()]
-        self.update_plot()
-    
-    def electrodeComboBoxSelectionChanged(self):
-        
-        self.currentElCombIndex = self.electrodeComboBox.currentIndex()
-        self.lastElectrodeCombination = self.currentElCombIndex
-        self.update_plot()
 
     def update_plot(self):
         
-        if self.data is None:
+        if not self.savedData:
             return
+        
+        self.data = self.savedData[self.measurementComboBox.currentIndex()]
+        indexEl = self.electrodeComboBox.currentIndex()
 
         freq = self.data.frequencies
-        measurand = self.data.impedances[self.currentElCombIndex] if self.mode == "Z" else self.data.admittances[self.currentElCombIndex]
+        measurand = self.data.impedances[indexEl] if self.mode == "Z" else self.data.admittances[indexEl]
 
         if len(freq) == 0 or len(measurand) == 0:
             return
@@ -525,15 +334,12 @@ class BodeDiagramTab(QWidget):
         
         if not self.savedData:
             self.electrodeComboBox.clear()
-            self.electrodeComboBox.addItems(data.electrodes)
+            self.electrodeComboBox.addItems([str(x) for x in data.electrodes])
             
         self.data = data
         self.savedData.append(data)
         self.measurementComboBox.addItem(f"{data.measurementIndex}: {data.startTimeShort} - {data.finishTimeShort}")
-        if self.lastElectrodeCombination is not None:
-            self.electrodeComboBox.setCurrentIndex(self.lastElectrodeCombination)
-        else:
-            self.electrodeComboBox.setCurrentIndex(0)
+        self.measurementComboBox.setCurrentIndex(len(self.savedData) - 1)
         self.update_plot()
 
 
@@ -542,16 +348,18 @@ class TimeSeriesTab(QWidget):
         super().__init__(parent)
         self.data = None
         self.savedData:list[EISData] = []
+        self.currentFrequencyIndex = None
+        self.currentElCombIndex = None
         self.mode = "Z"
         self.currentTimes = None
         self.currentMags = None
-        self.currentTimes = None
+        self.currentPhases = None
         self.initUI()
 
     def initUI(self):
-        self.setWindowTitle("Time Series Viewer")
-        self.setGeometry(300, 150, 1000, 600)
-        self.setStyleSheet("background-color: #f0f0f0;")
+        # self.setWindowTitle("Time Series Viewer")
+        # self.setGeometry(300, 150, 1000, 600)
+        # self.setStyleSheet("background-color: #f0f0f0;")
 
         layout = QVBoxLayout()
 
@@ -559,16 +367,27 @@ class TimeSeriesTab(QWidget):
         control_layout = QHBoxLayout()
 
         # Frequenzwahl
-        freq_label = QLabel("Select Frequency:")
+        freq_label = QLabel("Frequency:")
         freq_label.setFont(QFont("Arial", 12))
-        freq_label.setStyleSheet("color: #000000;")
+        # freq_label.setStyleSheet("color: #000000;")
         control_layout.addWidget(freq_label)
 
         self.freq_combo = QComboBox()
-        self.freq_combo.setFixedWidth(150)
+        self.freq_combo.setMinimumWidth(100)
         self.freq_combo.currentTextChanged.connect(self.update_plot)
         control_layout.addWidget(self.freq_combo)
-
+        
+        # Electrode combination choice
+        electrodeLabel = QLabel("Electrodes:")
+        electrodeLabel.setFont(QFont("Arial", 12))
+        # electrodeLabel.setStyleSheet("color: #000000;")
+        control_layout.addWidget(electrodeLabel)
+        
+        self.electrodeComboBox = QComboBox()
+        self.electrodeComboBox.setFixedHeight(40)
+        self.electrodeComboBox.currentIndexChanged.connect(self.update_plot)
+        control_layout.addWidget(self.electrodeComboBox)
+        
         # Z/Y Umschalter
         self.z_button = QPushButton("Z: Impedance")
         self.y_button = QPushButton("Y: Admittance")
@@ -655,12 +474,13 @@ class TimeSeriesTab(QWidget):
             if not self.savedData:
                 return
             
-            index = self.freq_combo.currentIndex()
+            indexFreq = self.freq_combo.currentIndex()
+            indexEl = self.electrodeComboBox.currentIndex()
             self.startTime = datetime.strptime(self.savedData[0].startTime, "%Y-%m-%d %H:%M:%S")
             self.currentTimes = [(datetime.strptime(x.startTime, "%Y-%m-%d %H:%M:%S") - self.startTime).total_seconds() for x in self.savedData]
             
-            self.currentMags = [x.magnitudesZ[0][index] for x in self.savedData] if self.mode == "Z" else [x.magnitudesY[0][index] for x in self.savedData]
-            self.currentPhases = [x.phasesZ[0][index] for x in self.savedData] if self.mode == "Z" else [x.phasesY[0][index] for x in self.savedData]
+            self.currentMags = [x.magnitudesZ[indexEl][indexFreq] for x in self.savedData] if self.mode == "Z" else [x.magnitudesY[indexEl][indexFreq] for x in self.savedData]
+            self.currentPhases = [x.phasesZ[indexEl][indexFreq] for x in self.savedData] if self.mode == "Z" else [x.phasesY[indexEl][indexFreq] for x in self.savedData]
 
             self.plot_mag.clear()
             self.plot_phase.clear()
@@ -697,8 +517,9 @@ class TimeSeriesTab(QWidget):
 
     def update_data(self, data:EISData):
         
-        if data.measurementIndex == 1:
+        if not self.savedData:
             self.freq_combo.addItems([str(f) for f in data.frequencies])
+            self.electrodeComboBox.addItems([str(x) for x in data.electrodes])
         
         self.data = data
         self.savedData.append(data)
@@ -709,15 +530,14 @@ class TimeSeriesTab(QWidget):
 class DerivedValueTab(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.data:EISData = None
         self.savedData:list[EISData] = []
         self.domainValues = None
         self.initUI()
 
     def initUI(self):
-        self.setWindowTitle("Derived Value Viewer")
-        self.setGeometry(300, 150, 1000, 600)
-        self.setStyleSheet("background-color: #f0f0f0;")
+        # self.setWindowTitle("Derived Value Viewer")
+        # self.setGeometry(300, 150, 1000, 600)
+        # self.setStyleSheet("background-color: #f0f0f0;")
 
         layout = QVBoxLayout()
 
@@ -725,7 +545,7 @@ class DerivedValueTab(QWidget):
         form_layout = QHBoxLayout()
         label = QLabel("Enter function (use Z or Y):")
         label.setFont(QFont("Arial", 12))
-        label.setStyleSheet("color: #000000;")
+        # label.setStyleSheet("color: #000000;")
         form_layout.addWidget(label)
 
         self.input_expr = QLineEdit()
@@ -733,12 +553,14 @@ class DerivedValueTab(QWidget):
         self.input_expr.setPlaceholderText("e.g. abs(Z) or np.real(1/Z)")
         self.input_expr.returnPressed.connect(self.update_plot)
         
+        self.electrodeComboBox = QComboBox()
         self.domainComboBox = QComboBox()
         self.frequencyButton = QRadioButton("Frequency")
         self.timeButton = QRadioButton("Time")
         self.frequencyButton.setChecked(True)
         self.domainButtonGroup = QButtonGroup()
-        self.domainButtonGroup.buttonToggled.connect(self.domainRadioStateChanged)
+        self.frequencyButton.clicked.connect(self.domainRadioStateChanged)
+        self.timeButton.clicked.connect(self.domainRadioStateChanged)
         self.domainButtonGroup.addButton(self.frequencyButton)
         self.domainButtonGroup.addButton(self.timeButton)
         
@@ -747,6 +569,8 @@ class DerivedValueTab(QWidget):
         form_layout.addWidget(self.frequencyButton)
         form_layout.addWidget(self.timeButton)
         form_layout.addWidget(self.domainComboBox)
+        form_layout.addWidget(QLabel("Electrodes:"))
+        form_layout.addWidget(self.electrodeComboBox)
 
         self.plot_btn = QPushButton("Plot")
         self.plot_btn.setFont(QFont("Arial", 12))
@@ -756,7 +580,7 @@ class DerivedValueTab(QWidget):
         form_layout.addWidget(self.plot_btn)
         
         # Plot-Widget mit interaktiver ViewBox
-        self.plot_widget = pg.PlotWidget(title="Derived Value vs Time")
+        self.plot_widget = pg.PlotWidget(title="Derived Value vs Frequency")
         self.plot_widget.setBackground('w')
         self.plot_widget.showGrid(x=True, y=True)
         self.plot_widget.setLabel('left', 'Derived Value')            
@@ -791,12 +615,13 @@ class DerivedValueTab(QWidget):
             return
 
         try:
+            indexEl = self.electrodeComboBox.currentIndex()
             if self.frequencyButton.isChecked():
                 currentData = self.savedData[self.domainComboBox.currentIndex()]
-                result = eval(expr, {"np": np, "Z": currentData.impedances[0], "Y": currentData.admittances[0]})
+                result = eval(expr, {"np": np, "Z": currentData.impedances[indexEl], "Y": currentData.admittances[indexEl]})
             else:
-                currentImpedances = [x.impedances[0][self.domainComboBox.currentIndex()] for x in self.savedData]
-                currentAdmittances = [x.admittances[0][self.domainComboBox.currentIndex()] for x in self.savedData]
+                currentImpedances = [x.impedances[indexEl][self.domainComboBox.currentIndex()] for x in self.savedData]
+                currentAdmittances = [x.admittances[indexEl][self.domainComboBox.currentIndex()] for x in self.savedData]
                 result = eval(expr, {"np": np, "Z": currentImpedances, "Y": currentAdmittances})
 
             if len(result) != len(self.domainValues):
@@ -807,33 +632,39 @@ class DerivedValueTab(QWidget):
             self.plot_widget.getViewBox().autoRange()  # Nach dem Plot automatisch skalieren
 
         except Exception as e:
-            QMessageBox.critical(self, "Plot Error", f"Failed to compute or plot expression:\n{e}")
+            if not updateExisting:
+                QMessageBox.critical(self, "Plot Error", f"Failed to compute or plot expression:\n{e}")
+            else:
+                print(f"Failed to compute or plot expression:\n{e}")
     
     def update_data(self, data:EISData):
         
         self.savedData.append(data)
         self.domainRadioStateChanged()
+        if self.frequencyButton.isChecked():
+            self.domainComboBox.setCurrentIndex(len(self.savedData) - 1)
         self.update_plot(True)
     
     def domainRadioStateChanged(self):
         
-        if not self.savedData:
-            return
-        
-        if (self.frequencyButton.isChecked()):
-            self.domainValues = self.savedData[0].frequencies
+        if self.frequencyButton.isChecked():
+            self.plot_widget.setTitle("Derived Value vs Frequency")
             self.plot_widget.setLabel('bottom', 'Frequency', units='Hz')
             self.domainComboBox.clear()
-            measurements = [f"{x.measurementIndex}: {x.startTime} - {x.finishTime}" for x in self.savedData]
-            self.domainComboBox.addItems(measurements)
+            if self.savedData:
+                self.domainValues = self.savedData[0].frequencies
+                measurements = [f"{x.measurementIndex}: {x.startTime} - {x.finishTime}" for x in self.savedData]
+                self.domainComboBox.addItems(measurements)
 
         else:
-            startTime = datetime.strptime(self.savedData[0].startTime, "%Y-%m-%d %H:%M:%S")
-            self.domainValues = [(datetime.strptime(x.startTime, "%Y-%m-%d %H:%M:%S") - startTime).total_seconds() for x in self.savedData]
+            self.plot_widget.setTitle("Derived Value vs Time")
             self.plot_widget.setLabel('bottom', 'Time', units='s')
             self.domainComboBox.clear()
-            measurements = [str(x) for x in self.savedData[0].frequencies]
-            self.domainComboBox.addItems(measurements)
+            if self.savedData:
+                startTime = datetime.strptime(self.savedData[0].startTime, "%Y-%m-%d %H:%M:%S")
+                self.domainValues = [(datetime.strptime(x.startTime, "%Y-%m-%d %H:%M:%S") - startTime).total_seconds() for x in self.savedData]
+                measurements = [str(x) for x in self.savedData[0].frequencies]
+                self.domainComboBox.addItems(measurements)
 
     def reset_zoom_on_doubleclick(self, event):
         if event.double():
