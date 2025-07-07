@@ -35,7 +35,8 @@ class MeasurementWorker(QThread):
                                     imagParts = resImag, 
                                     startTime=startTime, 
                                     finishTime=finishTime)
-                    self.resultReady.emit(data)
+                    if data.impedances is not None:
+                        self.resultReady.emit(data)
                     time.sleep(self.intervalMs / 1000)
             
             else:
@@ -50,9 +51,9 @@ class MeasurementWorker(QThread):
                                     realParts = resReal, 
                                     imagParts = resImag, 
                                     startTime=startTime, 
-                                    finishTime=finishTime, 
-                                    measurementIndex=measIndex)
-                    self.resultReady.emit(data)
+                                    finishTime=finishTime)
+                    if data.impedances is not None:
+                        self.resultReady.emit(data)
                     time.sleep(self.intervalMs / 1000)
         except Exception as e:
             print("Exception encountered: " + str(e))

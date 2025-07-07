@@ -10,12 +10,12 @@ import numpy as np
 import pandas as pd
 from scipy.io import loadmat
 import h5py
-import time
-from typing import List, Tuple
 
 
 class EISData:
     """Container für eine einzelne Messung."""
+    
+    index = 1
 
     def __init__(
         self,
@@ -26,8 +26,7 @@ class EISData:
         imagParts: np.ndarray | None = None,
         impedances: np.ndarray | None = None, 
         startTime: str | None = None,
-        finishTime: str | None = None,
-        measurementIndex : int | None = None,
+        finishTime: str | None = None
     ):
         self.timeStamps = np.asarray(timeStamp)
         self.frequencies = np.asarray(frequencies).ravel()  # list[float]
@@ -44,7 +43,8 @@ class EISData:
         self.finishTime = finishTime                    # str
         self.startTimeShort = startTime.split(" ")[1]
         self.finishTimeShort = finishTime.split(" ")[1]
-        self.measurementIndex = measurementIndex        # int
+        self.measurementIndex = EISData.index           # int
+        EISData.index += 1
         # print(f"Frequencies: {self.frequencies}")
         # print(f"Electrodes{electrodes}")
         # print(f"RealPart: {realParts}")
