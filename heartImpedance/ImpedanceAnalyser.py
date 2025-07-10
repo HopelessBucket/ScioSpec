@@ -1,9 +1,10 @@
 import math, datetime
-import serial, time
+import serial
 from EnumClasses import CurrentRange, InjectionType, FrequencyScale, FeMode, FeChannel, TimeStamp, ExternalModule, InternalModule
-from HelperFunctions import GetHexSingle, GetFloatFromBytes
-import numpy as np
+from HelperFunctions import GetHexSingle, GetFloatFromBytes, GetFloatResultsFromBytes
 class ImpedanceAnalyser():
+    """Device for handling communication with ScioSpec device
+    """
     
     #region Constructor
     def __init__(self, comPort:str):
@@ -405,8 +406,8 @@ class ImpedanceAnalyser():
         """0xB6 - Set Setup
         """
         
-        # command = bytes([0xB6, 0x01, 0x01, 0xB6])
-        # self.SendAndReceive(command)
+        command = bytes([0xB6, 0x01, 0x01, 0xB6])
+        self.SendAndReceive(command)
         
         command = bytes([0xB6, 0x25, 0x03])
 
@@ -715,8 +716,8 @@ class ImpedanceAnalyser():
             lengthCurrent = 1
             currentRange = results[4 + lengthTime]
         
-        zReal = GetFloatFromBytes(results[(7 + lengthCurrent + lengthTime):(3 + lengthCurrent + lengthTime):-1])
-        zImag = GetFloatFromBytes(results[(11 + lengthCurrent + lengthTime):(7 + lengthTime + lengthCurrent):-1])
+        zReal = GetFloatResultsFromBytes(results[(7 + lengthCurrent + lengthTime):(3 + lengthCurrent + lengthTime):-1])
+        zImag = GetFloatResultsFromBytes(results[(11 + lengthCurrent + lengthTime):(7 + lengthTime + lengthCurrent):-1])
         
         return zReal, zImag, warn, CurrentRange(currentRange), timeOffset
     

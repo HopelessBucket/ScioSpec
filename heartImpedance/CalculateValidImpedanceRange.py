@@ -5,8 +5,6 @@ def CalculateValidImpedanceRange(injectionType:InjectionType, injectionValue, in
     zMax = float("inf")
     
     match injectionCurrentRange:
-        case CurrentRange.rangeAuto:
-            currRange = None
         case CurrentRange.range10mA:
             currRange = 10e-3
         case CurrentRange.range100uA:

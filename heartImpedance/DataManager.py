@@ -1,30 +1,25 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-data_manager.py
-Lädt ISX‑3‑Messdaten (.mat oder .spec) in pandas‑DataFrames.
-"""
 from __future__ import annotations
-import pathlib
 import numpy as np
 import pandas as pd
-from scipy.io import loadmat
-import h5py
-
+import ast
 
 class EISData:
-    """Container für eine einzelne Messung."""
-    
+    """Class acting as container for measurement data
+
+    Returns:
+        _type_: _description_
+    """
+    # Measurement index as static variable, increases after each instantiation of this class
     index = 1
 
     def __init__(
         self,
-        timeStamp: np.ndarray,
-        frequencies: np.ndarray,
-        electrodes: np.ndarray | None = None,
-        realParts: np.ndarray | None = None,
-        imagParts: np.ndarray | None = None,
-        impedances: np.ndarray | None = None, 
+        timeStamp: list[list[float | None]],
+        frequencies: list[float],
+        electrodes: list[list[int]] | None = None,
+        realParts: list[list[float]] | None = None,
+        imagParts: list[list[float]] | None = None,
+        impedances: list[list[complex]] | None = None, 
         startTime: str | None = None,
         finishTime: str | None = None
     ):
@@ -32,23 +27,24 @@ class EISData:
         self.frequencies = np.asarray(frequencies).ravel()  # list[float]
         if realParts and imagParts:
             self.impedances = np.asarray([[complex(realParts[i][x], imagParts[i][x]) for x in range(len(frequencies))] for i in range(len(electrodes))]) # list[list[complex]]
-            self.realParts = np.asarray(realParts)        # list[list[float]]
-            self.imagParts = np.asarray(imagParts)        # list[list[float]]
+            self.realParts = np.asarray(realParts)
+            self.imagParts = np.asarray(imagParts)
         elif impedances:
-            self.impedances = impedances          
-            self.realParts = np.real(impedances)
-            self.imagParts = np.imag(impedances) 
-        self.electrodes = electrodes                    # list[list[int]]
-        self.startTime = startTime                      # str
-        self.finishTime = finishTime                    # str
+            self.realParts = np.asarray([[impedances[i][x].real for x in range(len(frequencies))] for i in range(len(electrodes))])
+            self.imagParts = np.asarray([[impedances[i][x].imag for x in range(len(frequencies))] for i in range(len(electrodes))])
+            self.impedances = np.asarray(impedances)         
+        self.electrodes = electrodes
+        self.startTime = startTime
+        self.finishTime = finishTime
         self.startTimeShort = startTime.split(" ")[1]
         self.finishTimeShort = finishTime.split(" ")[1]
-        self.measurementIndex = EISData.index           # int
+        self.measurementIndex = EISData.index
         EISData.index += 1
+        # Debug
         # print(f"Frequencies: {self.frequencies}")
-        # print(f"Electrodes{electrodes}")
-        # print(f"RealPart: {realParts}")
-        # print(f"ImagPart: {imagParts}")
+        # print(f"Electrodes{self.electrodes}")
+        # print(f"RealPart: {self.realParts}")
+        # print(f"ImagPart: {self.imagParts}")
         # print(f"Time: {self.timeStamps}")
         # print(f"Impedance: {self.impedances}")
         # print(f"StartTime: {self.startTime}")
@@ -80,55 +76,30 @@ class EISData:
     def phasesY(self) -> np.ndarray:
         return np.angle(self.admittances, deg=True)
 
+    def SaveToDataframe(self) -> pd.DataFrame:
+    
+        dfRows = []
+        for elIndex, elComb in enumerate(self.electrodes):
+            for freqIndex, frequency in enumerate(self.frequencies):
+                dfRows.append([self.measurementIndex, str(elComb), frequency, self.impedances[elIndex][freqIndex], self.timeStamps[elIndex][freqIndex], self.startTime, self.finishTime])
+        return pd.DataFrame(dfRows, columns=["MeasurementIndex", "Electrodes", "Frequency", "Impedance", "Timestamp", "StartTime", "FinishTime"])
 
-# ---------------------------------------------------------------------- #
-#  .mat‑Loader – kompatibel zu Measurement_Script_new.m                  #
-# ---------------------------------------------------------------------- #
-def _load_mat_file(path: pathlib.Path) -> EISData:
-    try:
-        dat = loadmat(path, squeeze_me=True)
-    except NotImplementedError:
-        with h5py.File(path, "r") as f:
-            dat = {k: f[k][()] for k in f.keys()}
-
-    # Erforderliche Variablen laut originalem Skript
-    z = _to_complex(dat.get("resImpedColumn"))
-    fvec = dat.get("resFrequencies")
-    t = dat.get("resTimeOffset") or np.arange(z.shape[0])
-    el = dat.get("resElectrodes")
-
-    return EISData(timeStamp=t, frequencies=fvec, impedances=z, electrodes=el)
-
-
-def _to_complex(vec):
-    """Falls Real + Imag separat vorliegen, zusammenführen."""
-    vec = np.asarray(vec)
-    if vec.ndim == 2 and vec.shape[1] == 2:
-        return vec[:, 0] + 1j * vec[:, 1]
-    return vec.astype(np.complex128)
-
-
-# ---------------------------------------------------------------------- #
-#  Dispatcher – erkennt Dateityp                                         #
-# ---------------------------------------------------------------------- #
-def load_measurement(file_path: pathlib.Path) -> EISData:
-    ext = file_path.suffix.lower()
-    if ext == ".mat":
-        return _load_mat_file(file_path)
-    elif ext == ".spec":
-        return _load_spec(file_path)
-    else:
-        raise ValueError(f"Unbekanntes Dateiformat: {file_path}")
-
-
-# ---------------------------------------------------------------------- #
-#  .spec (ASCII)‑Loader                                                  #
-# ---------------------------------------------------------------------- #
-def _load_spec(path: pathlib.Path) -> EISData:
-    with open(path, encoding="utf-8") as f:
-        header_rows = int(f.readline())
-    df = pd.read_csv(path, skiprows=header_rows, sep=",")
-    time = df["Time"].to_numpy()
-    freq = df["Frequency"].to_numpy()
-    z = df["Zreal"].to_numpy() + 1j * df["Zimag"].to_numpy()
-    return EISData(timeStamp=time, frequencies=freq, impedances=z)
+def LoadFromDataframe(df:pd.DataFrame) -> EISData:
+    
+    electrodes = list(set(df["Electrodes"].to_list()))
+    electrodes = [ast.literal_eval(electrodes[i]) for i in range(len(electrodes))]
+    frequencies = list(set(df["Frequency"].to_list()))
+    impedances = [list(map(complex, df["Impedance"].to_list()[i:i+len(frequencies)])) for i in range(0, df.shape[0], len(frequencies))]
+    timestamps = [df["Timestamp"].to_list()[i:i+len(frequencies)] for i in range(0, df.shape[0], len(frequencies))]
+    startTime = df["StartTime"][0]
+    finishTime = df["FinishTime"][0]
+    
+    data =  EISData( timeStamp=timestamps, 
+                    frequencies=frequencies, 
+                    electrodes=electrodes, 
+                    impedances=impedances, 
+                    startTime=startTime,
+                    finishTime=finishTime)
+    data.measurementIndex = df["MeasurementIndex"][0]
+    
+    return data
