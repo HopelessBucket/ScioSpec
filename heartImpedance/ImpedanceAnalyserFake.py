@@ -1,9 +1,11 @@
 import math, datetime
 from EnumClasses import CurrentRange, InjectionType, FrequencyScale, FeMode, FeChannel, TimeStamp, ExternalModule, InternalModule
-from HelperFunctions import GetHexSingle, GetFloatFromBytes
+from HelperFunctions import GetHexSingle, GetFloatFromBytes, GetFloatResultsFromBytes
 import numpy as np
 import random
 class ImpedanceAnalyserFake():
+    """Fake class for GUI testing without device
+    """
     
     #region Constructor
     def __init__(self, comPort:str):
@@ -414,8 +416,8 @@ class ImpedanceAnalyserFake():
             lengthCurrent = 1
             currentRange = results[4 + lengthTime]
 
-        zReal = GetFloatFromBytes(results[(7 + lengthCurrent + lengthTime):(3 + lengthCurrent + lengthTime):-1])
-        zImag = GetFloatFromBytes(results[(11 + lengthCurrent + lengthTime):(7 + lengthTime + lengthCurrent):-1])
+        zReal = GetFloatResultsFromBytes(results[(7 + lengthCurrent + lengthTime):(3 + lengthCurrent + lengthTime):-1])
+        zImag = GetFloatResultsFromBytes(results[(11 + lengthCurrent + lengthTime):(7 + lengthTime + lengthCurrent):-1])
 
         return zReal, zImag, warn, CurrentRange(currentRange), timeOffset
     

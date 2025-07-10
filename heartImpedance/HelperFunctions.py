@@ -1,5 +1,7 @@
 import itertools, struct
 
+# Helper functions: some conversions and old matlab GenElectrodeConf
+
 def GenElectrodeConf(electrodes:list = [], ordered:bool = True) -> list[list[int]]:
     
     if not electrodes:
@@ -34,3 +36,7 @@ def GetHexSingle(freq) -> list[int]:
 def GetFloatFromBytes(bytedFloat:bytes) -> float:
     
     return struct.unpack("!f", bytedFloat)[0]
+
+def GetFloatResultsFromBytes(bytedFloat:bytes):
+    
+    return struct.unpack("<f", bytedFloat)[0]
